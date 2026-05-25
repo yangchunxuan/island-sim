@@ -135,16 +135,16 @@ def test_energy_capped_at_min() -> None:
 
 
 def test_sleep_when_energy_below_20() -> None:
-    """验证energy < 20 时强制进入SLEEP"""
-    npc = _make_npc({"energy": 15, "hunger": 50})
+    """验证energy < 20 时强制进入SLEEP（在房屋上直接睡）"""
+    npc = _make_npc({"energy": 15, "hunger": 50, "x": 8, "y": 8})
     _advance_to_day(npc)
     npc.update()
     assert npc.get_state() == "SLEEP"
 
 
 def test_sleep_at_night() -> None:
-    """验证夜晚强制进入SLEEP"""
-    npc = _make_npc({"energy": 80, "hunger": 50})
+    """验证夜晚强制进入SLEEP（在房屋上直接睡）"""
+    npc = _make_npc({"energy": 80, "hunger": 50, "x": 8, "y": 8})
     _advance_to_night(npc)
     npc.update()
     assert npc.get_state() == "SLEEP"
@@ -171,8 +171,8 @@ def test_wake_up_when_day_and_energy_high() -> None:
 
 
 def test_sleep_recovers_energy() -> None:
-    """验证SLEEP时energy恢复"""
-    npc = _make_npc({"energy": 10, "hunger": 50})
+    """验证SLEEP时energy恢复（在房屋上直接睡）"""
+    npc = _make_npc({"energy": 10, "hunger": 50, "x": 8, "y": 8})
     _advance_to_night(npc)
     previous = npc.energy
     npc.update()

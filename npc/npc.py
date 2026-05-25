@@ -45,6 +45,8 @@ class NPC:
         self._idle_timer: int = 0
         # 移动冷却帧
         self._move_cooldown: int = 0
+        # A*路径（步进列表）
+        self._path: list[tuple[int, int]] = []
 
         # 状态机，初始为IDLE
         self.fsm: StateMachine = StateMachine(initial_state="IDLE")

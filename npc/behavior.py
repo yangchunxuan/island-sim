@@ -4,13 +4,16 @@ NPC行为状态模块 — Island Sim v1
 定义IDLE/WALK/SEARCH_FOOD/EAT/SLEEP五个状态，实现完整行为循环：
 IDLE → WALK → IDLE（自由漫游）
 hunger>70 → SEARCH_FOOD → WALK(到森林) → EAT → IDLE
-energy<20 / 夜晚 → SLEEP
+energy<20 / 夜晚 → SLEEP(到房屋) → 恢复能量 → IDLE
+
+使用A*寻路替代随机漫步，目标驱动。
 """
 
 import random
 from typing import Optional
 
 from config import STAT_MIN, STAT_MAX, TileType
+from systems.pathfinding import astar
 from systems.state_machine import State
 from world.map import GameMap
 
@@ -57,12 +60,43 @@ class IdleState(State):
 
 
 class WalkState(State):
-    """行走状态：向目标tile一步步移动"""
+    """行走状态：沿A*路径一步步移动"""
+
+    def enter(self, owner: object) -> None:
+        """进入行走，用A*计算从当前位置到目标的路径"""
+        if owner.target_x is None or owner.target_y is None:
+            owner._path = []
+            return
+
+        path = astar(
+            owner._map,
+            (owner.x, owner.y),
+            (owner.target_x, owner.target_y),
+        )
+        if path is None:
+            # 目标不可达，取消本次行走
+            owner.target_x = None
+            owner.target_y = None
+            owner._path = []
+            owner.fsm.set_state("IDLE", owner)
+            return
+        owner._path = path
 
     def update(self, owner: object) -> None:
-        """每帧向目标方向移动一格（每5帧实际移动一次）"""
-        if owner.target_x is None or owner.target_y is None:
-            owner.fsm.set_state("IDLE", owner)
+        """每帧从路径中弹出一步（每5帧实际移动一次）"""
+        if not owner._path:
+            # 路径为空：到达目标或没有路径
+            purpose = owner._walk_purpose
+            owner._walk_purpose = "IDLE"
+            owner.target_x = None
+            owner.target_y = None
+            if purpose == "EAT":
+                owner.fsm.set_state("EAT", owner)
+            elif purpose == "SLEEP":
+                # 到达房屋，开始睡觉
+                owner.fsm.set_state("SLEEP", owner)
+            else:
+                owner.fsm.set_state("IDLE", owner)
             return
 
         # 移动冷却
@@ -71,37 +105,15 @@ class WalkState(State):
             return
         owner._move_cooldown = 5
 
-        game_map: GameMap = owner._map
+        # 路径由A*保证全是walkable
+        next_x, next_y = owner._path.pop(0)
+        owner.x, owner.y = next_x, next_y
 
-        # 计算下一步坐标（优先水平方向）
-        dx = owner.target_x - owner.x
-        dy = owner.target_y - owner.y
-        if abs(dx) >= abs(dy):
-            nx = owner.x + (1 if dx > 0 else -1 if dx < 0 else 0)
-            ny = owner.y
-        else:
-            nx = owner.x
-            ny = owner.y + (1 if dy > 0 else -1 if dy < 0 else 0)
-
-        # 检查是否到达目标
-        if owner.x == owner.target_x and owner.y == owner.target_y:
-            purpose = owner._walk_purpose
-            owner._walk_purpose = "IDLE"
-            if purpose == "EAT":
-                owner.fsm.set_state("EAT", owner)
-            else:
-                owner.fsm.set_state("IDLE", owner)
-            return
-
-        # 移动（遇到障碍则放弃本次行走）
-        if game_map.is_walkable(nx, ny):
-            owner.x, owner.y = nx, ny
-        else:
-            owner.fsm.set_state("IDLE", owner)
+        # 如果路径走到最后一步，下一帧会触发上面的空路径判断
 
 
 class SearchFoodState(State):
-    """觅食状态：找到最近的FOREST tile并走向它"""
+    """觅食状态：找到最近的FOREST tile并用A*寻路过去"""
 
     def enter(self, owner: object) -> None:
         """进入觅食，立即查找最近森林并切换为WALK"""
@@ -120,7 +132,7 @@ class SearchFoodState(State):
 
     @staticmethod
     def _find_nearest_forest(owner: object) -> Optional[tuple[int, int]]:
-        """扫描全图，返回距离最近的可通行FOREST tile"""
+        """扫描全图，返回距离最近的FOREST tile"""
         game_map: GameMap = owner._map
         best: Optional[tuple[int, int]] = None
         best_dist: float = float("inf")
@@ -147,8 +159,38 @@ class EatState(State):
 
 
 class SleepState(State):
-    """睡眠状态：每帧恢复能量"""
+    """睡眠状态：先找最近房屋走过去，到达后每帧恢复能量"""
+
+    def enter(self, owner: object) -> None:
+        """进入睡眠时，如果不在房屋上则先导航过去"""
+        if not self._is_at_house(owner):
+            target = self._find_nearest_house(owner)
+            if target:
+                owner._walk_purpose = "SLEEP"
+                owner.target_x, owner.target_y = target
+                owner._move_cooldown = 0
+                owner.fsm.set_state("WALK", owner)
+                return
+        # 已在房屋或找不到房屋：原地睡觉
 
     def update(self, owner: object) -> None:
         """每帧恢复能量0.5点"""
         owner.energy = min(STAT_MAX, owner.energy + 0.5)
+
+    @staticmethod
+    def _is_at_house(owner: object) -> bool:
+        """检查NPC当前是否站在HOUSE tile上"""
+        tile = owner._map.get_tile(owner.x, owner.y)
+        return tile == TileType.HOUSE
+
+    @staticmethod
+    def _find_nearest_house(owner: object) -> Optional[tuple[int, int]]:
+        """从地图上找到最近的HOUSE tile坐标"""
+        game_map: GameMap = owner._map
+        houses = game_map.get_houses()
+        if not houses:
+            return None
+        return min(
+            houses,
+            key=lambda h: (h[0] - owner.x) ** 2 + (h[1] - owner.y) ** 2,
+        )
