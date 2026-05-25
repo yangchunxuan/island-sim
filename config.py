@@ -88,7 +88,26 @@ walkable — NPC能否通行;
 resource_type — 可采集的资源类型 (None/\"food\");
 can_sleep — NPC能否在此睡觉;
 can_socialize — NPC能否在此社交。
-"""
+	"""
+
+# ── NPC状态颜色 ──
+
+STATE_COLORS: dict[str, tuple[int, int, int]] = {
+    "IDLE": (255, 255, 255),        # 白色
+    "WALK": (0, 200, 0),            # 绿色
+    "SEARCH_FOOD": (255, 255, 0),   # 黄色
+    "EAT": (255, 165, 0),           # 橙色
+    "SLEEP": (0, 100, 255),         # 蓝色
+}
+
+# NPC名称拼音（中文可能显示不了用拼音）
+NPC_NAME_PINYIN: dict[str, str] = {
+    "阿强": "A-Qiang",
+    "阿珍": "A-Zhen",
+    "大壮": "Da-Zhuang",
+    "小美": "Xiao-Mei",
+    "老李": "Lao-Li",
+}
 
 
 # ── NPC初始数据 ──
@@ -114,3 +133,22 @@ STAT_MAX: int = 100
 
 DAY_TICKS: int = 1200
 """一个完整的白天+夜晚所需的tick数（60FPS下约20秒）"""
+
+
+# ── Debug Overlay ──
+
+OVERLAY_NONE: int = 0
+OVERLAY_TILE: int = 1
+OVERLAY_STATS: int = 2
+OVERLAY_PATH: int = 3
+
+# Tile类型缩写（debug网格用）
+TILE_LABELS: dict[TileType, str] = {
+    TileType.WATER: "W",
+    TileType.SAND: "S",
+    TileType.GRASS: "G",
+    TileType.FOREST: "F",
+    TileType.ROCK: "R",
+    TileType.HOUSE: "H",
+    TileType.CAMPFIRE: "C",
+}
