@@ -113,7 +113,7 @@ NPC_NAME_PINYIN: dict[str, str] = {
 # ── NPC初始数据 ──
 
 NPC_INITIAL_DATA: List[Dict[str, Any]] = [
-    {"name": "阿强", "gender": "male",   "x": 3,  "y": 3,  "hunger": 50, "energy": 80, "mood": 60, "inventory": [], "state": "IDLE"},
+    {"name": "阿强", "gender": "male",   "x": 5,  "y": 5,  "hunger": 50, "energy": 80, "mood": 60, "inventory": [], "state": "IDLE"},
     {"name": "阿珍", "gender": "female", "x": 7,  "y": 4,  "hunger": 40, "energy": 90, "mood": 70, "inventory": [], "state": "IDLE"},
     {"name": "大壮", "gender": "male",   "x": 12, "y": 5,  "hunger": 60, "energy": 70, "mood": 50, "inventory": [], "state": "IDLE"},
     {"name": "小美", "gender": "female", "x": 5,  "y": 12, "hunger": 30, "energy": 85, "mood": 80, "inventory": [], "state": "IDLE"},

@@ -237,7 +237,8 @@ def test_low_hunger_no_mood_decay() -> None:
 
 def test_weakened_after_prolonged_hunger() -> None:
     """验证hunger持续超过阈值后触发weakened"""
-    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100})
+    # 放在不可行走位置(水中)，防止NPC跑去觅食打断饥饿累积
+    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100, "x": 0, "y": 0})
     _advance_to_day(npc)
     # 初始不weakened
     assert not npc._weakened
@@ -251,7 +252,8 @@ def test_weakened_after_prolonged_hunger() -> None:
 
 def test_weakened_recovery() -> None:
     """验证hunger降至阈值以下后解除weakened"""
-    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100})
+    # 放在不可行走位置(水中)，防止NPC跑去觅食打断饥饿累积
+    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100, "x": 0, "y": 0})
     _advance_to_day(npc)
     # 触发weakened
     for _ in range(WEAKENED_TRIGGER_DURATION + 20):
@@ -284,7 +286,8 @@ def test_weakened_slows_movement() -> None:
 
 def test_weakened_longer_idle() -> None:
     """验证weakened时空闲时间更长"""
-    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100})
+    # 放在不可行走位置(水中)，防止NPC跑去觅食打断饥饿累积
+    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100, "x": 0, "y": 0})
     _advance_to_day(npc)
     # 触发weakened
     for _ in range(WEAKENED_TRIGGER_DURATION + 20):
