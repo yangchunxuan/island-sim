@@ -204,7 +204,10 @@ class TestNarrativeGenerator(unittest.TestCase):
                                "avg_mood": 50, "weakened_count": 0, "npc_count": 5},
         }
         text = self.narrator.generate(1, report)
-        self.assertEqual(text, "今日无显著事件发生。")
+        # 结构化日报总是包含各板块
+        self.assertIn("区域分析", text)
+        self.assertIn("资源趋势", text)
+        self.assertIn("世界压力", text)
 
     def test_high_pressure_narrative(self):
         report = {
@@ -217,9 +220,9 @@ class TestNarrativeGenerator(unittest.TestCase):
                                "avg_mood": 25, "weakened_count": 3, "npc_count": 5},
         }
         text = self.narrator.generate(3600, report)
-        self.assertIn("长期枯竭", text)
-        self.assertIn("weakened", text)
-        self.assertIn("压力", text)
+        self.assertIn("枯竭率60%", text)
+        self.assertIn("虚弱NPC: 3", text)
+        self.assertIn("生存压力", text)
 
     def test_full_day_12_narrative(self):
         """模拟Day 12的综合叙事"""
@@ -241,7 +244,7 @@ class TestNarrativeGenerator(unittest.TestCase):
                                "avg_mood": 45, "weakened_count": 1, "npc_count": 5},
         }
         text = self.narrator.generate(14400, report)
-        self.assertIn("海岸觅食路线", text)
+        self.assertIn("偏好海岸", text)
         self.assertIn("阿强", text)
         self.assertIn("小美", text)
 

@@ -18,6 +18,7 @@ from config import (
     FPS,
     HEADLESS_TICK_RATE,
     NPC_INITIAL_DATA,
+    OVERLAY_HEATMAP,
     OVERLAY_NONE,
     OVERLAY_TILE,
     OVERLAY_STATS,
@@ -165,6 +166,8 @@ def main() -> None:
                     overlay_mode = OVERLAY_PATH
                 elif event.key == pygame.K_F4:
                     overlay_mode = OVERLAY_NONE
+                elif event.key == pygame.K_F5:
+                    overlay_mode = OVERLAY_HEATMAP
 
         # ── 逻辑更新 ──
         time_system.tick()

@@ -9,11 +9,14 @@ import pygame
 
 from config import (
     COLOR_BLACK,
+    HEATMAP_ALPHA,
+    HEATMAP_COLORS,
     MAP_HEIGHT,
     MAP_WIDTH,
     OVERLAY_TILE,
     OVERLAY_STATS,
     OVERLAY_PATH,
+    OVERLAY_HEATMAP,
     TILE_LABELS,
     TILE_SIZE,
 )
@@ -24,6 +27,13 @@ class DebugRenderer:
 
     def __init__(self, font_small: pygame.font.Font) -> None:
         self._font = font_small
+
+    def set_heatmap_data(
+        self, pressure_map: object, resource_mgr: object,
+    ) -> None:
+        """注入热力图数据"""
+        self._pressure_map = pressure_map
+        self._resource_mgr = resource_mgr
 
     def draw(
         self,
@@ -39,6 +49,27 @@ class DebugRenderer:
             self._draw_npc_stats(surface, npcs)
         elif mode == OVERLAY_PATH:
             self._draw_paths(surface, npcs)
+        elif mode == OVERLAY_HEATMAP:
+            self._draw_heatmap(surface)
+
+    def _get_heat_color(self, value: float) -> tuple[int, int, int]:
+        """压力值(0~1)映射到颜色梯度"""
+        idx = min(len(HEATMAP_COLORS) - 1, int(value * len(HEATMAP_COLORS)))
+        return HEATMAP_COLORS[idx]
+
+    def _draw_heatmap(self, surface: pygame.Surface) -> None:
+        """绘制压力/脚流量热力图叠加层"""
+        pm = getattr(self, '_pressure_map', None)
+        if pm is None:
+            return
+        for x in range(MAP_WIDTH):
+            for y in range(MAP_HEIGHT):
+                score = pm.get_score(x, y)
+                color = self._get_heat_color(score)
+                overlay = pygame.Surface((TILE_SIZE, TILE_SIZE))
+                overlay.set_alpha(HEATMAP_ALPHA)
+                overlay.fill(color)
+                surface.blit(overlay, (x * TILE_SIZE, y * TILE_SIZE))
 
     def _draw_tile_grid(
         self,

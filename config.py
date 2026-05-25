@@ -215,6 +215,7 @@ OVERLAY_NONE: int = 0
 OVERLAY_TILE: int = 1
 OVERLAY_STATS: int = 2
 OVERLAY_PATH: int = 3
+OVERLAY_HEATMAP: int = 4
 
 # ── T-016 可视化常量 ──
 
@@ -231,6 +232,19 @@ HUD_FOOD_COLOR: tuple[int, int, int] = (100, 200, 100)
 HUD_DEPLETED_COLOR: tuple[int, int, int] = (200, 100, 100)
 HUD_WEAKENED_COLOR: tuple[int, int, int] = (200, 200, 100)
 HUD_MOOD_COLOR: tuple[int, int, int] = (100, 150, 255)
+
+# ── T-E003 热力图颜色 ──
+
+HEATMAP_ALPHA: int = 100
+"""热力叠加层透明度"""
+HEATMAP_COLORS: list[tuple[int, int, int]] = [
+    (40, 180, 40),    # 0.0 绿 — 低压/健康
+    (120, 200, 40),   # 0.2 黄绿
+    (200, 200, 40),   # 0.4 黄
+    (220, 140, 40),   # 0.6 橙
+    (200, 80, 40),    # 0.8 红橙
+    (180, 40, 40),    # 1.0 红 — 高压/崩溃
+]
 
 
 # Tile类型缩写（debug网格用）

@@ -46,8 +46,9 @@ class Renderer:
         self._npcs = npcs
 
     def set_pressure_map(self, pressure_map: object) -> None:
-        """注入区域压力图（传递给HUD）"""
+        """注入区域压力图（传递给HUD和Debug层）"""
         self._hud.set_pressure_map(pressure_map)
+        self._debug.set_heatmap_data(pressure_map, self._resource_mgr)
 
     def draw(self, overlay_mode: int = OVERLAY_NONE) -> None:
         """全帧渲染，严格按固定顺序"""

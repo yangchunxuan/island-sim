@@ -7,9 +7,11 @@
 from typing import Any, Optional
 
 from observer.event_logger import EventLogger
+from observer.event_stream import EventStream
 from observer.long_term_memory import LongTermMemory
 from observer.pattern_analyzer import PatternAnalyzer
 from observer.narrative_generator import NarrativeGenerator
+from observer.world_chronicle import WorldChronicle
 
 
 def _region_name(x: int, y: int) -> str:
@@ -40,6 +42,8 @@ class WorldObserver:
         self._last_report: Optional[dict[str, Any]] = None
         self._pressure_map: object = None
         self._memory: LongTermMemory = LongTermMemory()
+        self._chronicle: WorldChronicle = WorldChronicle()
+        self._event_stream: EventStream = EventStream()
 
     def set_pressure_map(self, pressure_map: object) -> None:
         """注入区域压力图引用"""
@@ -71,7 +75,7 @@ class WorldObserver:
         resource_mgr: object,
         npcs: list,
     ) -> None:
-        """主更新入口：检测变化 → 记录事件 → 定期分析"""
+        """主更新入口：检测变化 → 记录事件 → 事件流 → 定期分析"""
         self._log_npc_profiles(tick, npcs)
         if resource_mgr is not None:
             self._detect_resource_events(tick, resource_mgr)
@@ -87,6 +91,9 @@ class WorldObserver:
             self._update_resource_snapshot(resource_mgr)
         self._update_npc_snapshot(npcs)
 
+        # 事件流输出（每次update追加新事件）
+        self._event_stream.update(tick, self.event_logger)
+
         if tick - self._last_analysis_tick >= self.ANALYSIS_INTERVAL and tick > 0:
             self._last_analysis_tick = tick
             self._run_analysis(tick, npcs, resource_mgr)
@@ -101,6 +108,7 @@ class WorldObserver:
         report = self._analyzer.analyze(tick, npcs, resource_mgr)
         self._memory.update(tick, npcs, self._pressure_map)
         report["world_history"] = self._memory.get_summary()
+        self._chronicle.update(tick, self.event_logger)
         self._last_report = report
         self._narrator.generate(tick, report)
 
