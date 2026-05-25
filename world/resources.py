@@ -5,7 +5,6 @@
 T-017: 从"有限消耗"升级为"动态生态循环"。
 """
 
-import math
 import random
 from typing import Optional
 
@@ -405,7 +404,7 @@ class ResourceManager:
 
     def _is_night_time(self) -> bool:
         """粗略判断是否夜晚（基于生态帧计数）"""
-        # 使用帧计数估算昼夜：每1200帧一个完整昼夜
+        # 生态帧计数因5NPC去重，实际约240帧一个完整昼夜(≈4s@60fps)
         phase = self._eco_call_count % 1200
         return 400 <= phase < 1000  # 大约1/3时间夜晚
 
