@@ -122,6 +122,53 @@ NPC_INITIAL_DATA: List[Dict[str, Any]] = [
 """5个固定NPC的初始属性"""
 
 
+# ── T-017 生态循环 ──
+
+# 森林恢复
+FOREST_REGROWTH_DAYS: int = 25
+"""depleted森林自动恢复所需天数"""
+
+# 蘑菇系统
+MUSHROOM_SPAWN_CHANCE: float = 0.002
+"""每帧每个候选tile的蘑菇生成概率"""
+MUSHROOM_SPAWN_NIGHT_MULT: float = 2.5
+"""夜晚生成概率倍率"""
+MUSHROOM_FRESH_DURATION: int = 240
+"""fresh阶段持续帧数（约4秒）"""
+MUSHROOM_OLD_DURATION: int = 180
+"""old阶段持续帧数（约3秒）"""
+MUSHROOM_ROTTEN_DURATION: int = 120
+"""rotten阶段持续帧数（约2秒），之后消失"""
+MUSHROOM_NUTRITION_FRESH: int = 15
+"""fresh蘑菇减少饥饿值"""
+MUSHROOM_NUTRITION_OLD: int = 8
+"""old蘑菇减少饥饿值"""
+
+# 鱼类系统
+FISH_SPAWN_CHANCE: float = 0.003
+"""每帧每个候选tile的鱼生成概率"""
+FISH_SPAWN_NIGHT_REDUCTION: float = 0.3
+"""夜晚生成概率降低比例"""
+FISH_LIFETIME: int = 300
+"""鱼存在帧数（约5秒）"""
+FISH_NUTRITION: int = 12
+"""鱼减少的饥饿值"""
+
+# 资源热点
+HOTSPOT_MUSHROOM_MULT: float = 3.0
+"""蘑菇热点区域生成概率倍率"""
+HOTSPOT_FISH_MULT: float = 2.5
+"""鱼类热点区域生成概率倍率"""
+
+# 人流量追踪
+TRAFFIC_DECAY: float = 0.998
+"""每帧人流量衰减系数"""
+TRAFFIC_REGROWTH_PENALTY: float = 0.5
+"""高流量区域的恢复速度倍率（值越低恢复越慢）"""
+TRAFFIC_HIGH_THRESHOLD: float = 50.0
+"""判定为高流量的阈值"""
+
+
 # ── 属性范围 ──
 
 STAT_MIN: int = 0

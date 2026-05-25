@@ -1,8 +1,7 @@
 """
-NPC行为状态模块 — Island Sim v1
+NPC行为状态模块 — Island Sim v1 (生态升级)
 
-定义IDLE/WALK/SEARCH_FOOD/EAT/SLEEP五个状态，实现完整行为循环。
-T-015新增：资源有限、weakened状态、饥饿影响心情。
+T-017: SEARCH_FOOD/EAT 支持蘑菇/鱼，所有状态推动生态帧，行走记录人流量。
 """
 
 import random
@@ -18,6 +17,13 @@ from config import (
 from systems.pathfinding import astar
 from systems.state_machine import State
 from world.map import GameMap
+
+
+def _tick_eco(owner: object) -> None:
+    """推进生态帧（从每个state的update调用，去重由ResourceManager处理）"""
+    rm = getattr(owner, '_resource_mgr', None)
+    if rm is not None:
+        rm.update()
 
 
 def register_npc_states(npc: object) -> None:
@@ -46,6 +52,7 @@ class IdleState(State):
 
     def update(self, owner: object) -> None:
         """计时结束后切换为WALK"""
+        _tick_eco(owner)
         owner._idle_timer -= 1
         if owner._idle_timer <= 0:
             target = self._pick_walk_target(owner)
@@ -84,7 +91,6 @@ class WalkState(State):
             (owner.target_x, owner.target_y),
         )
         if path is None:
-            # 目标不可达，取消本次行走
             owner.target_x = None
             owner.target_y = None
             owner._path = []
@@ -93,9 +99,9 @@ class WalkState(State):
         owner._path = path
 
     def update(self, owner: object) -> None:
-        """每帧从路径中弹出一步"""
+        """每帧从路径中弹出一步，记录人流量"""
+        _tick_eco(owner)
         if not owner._path:
-            # 路径为空：到达目标或没有路径
             purpose = owner._walk_purpose
             owner._walk_purpose = "IDLE"
             owner.target_x = None
@@ -108,81 +114,71 @@ class WalkState(State):
                 owner.fsm.set_state("IDLE", owner)
             return
 
-        # 移动冷却
         owner._move_cooldown -= 1
         if owner._move_cooldown > 0:
             return
-        # weakened NPC移动更慢
         owner._move_cooldown = WEAKENED_MOVE_COOLDOWN if _is_weakened(owner) else 5
 
-        # 路径由A*保证全是walkable
         next_x, next_y = owner._path.pop(0)
         owner.x, owner.y = next_x, next_y
 
+        # 记录人流量
+        rm = getattr(owner, '_resource_mgr', None)
+        if rm is not None:
+            rm.record_traffic(next_x, next_y)
+
 
 class SearchFoodState(State):
-    """觅食状态：找到最近仍有食物的FOREST并用A*寻路过去"""
+    """觅食状态：查找最近可用食物源（森林/蘑菇/鱼）并用A*走过去"""
 
     def enter(self, owner: object) -> None:
-        """进入觅食，查找最近未耗尽的森林"""
-        target = self._find_nearest_forest(owner)
-        if target:
-            owner._walk_purpose = "EAT"
-            owner.target_x, owner.target_y = target
-            owner.fsm.set_state("WALK", owner)
-        else:
-            # 所有森林已耗尽，退回空闲
-            owner.fsm.set_state("IDLE", owner)
+        """进入觅食，查找最近未耗尽的食物"""
+        rm = getattr(owner, '_resource_mgr', None)
+        if rm is not None:
+            target = rm.find_nearest_food(owner.x, owner.y)
+            if target:
+                fx, fy, ftype = target
+                owner._walk_purpose = "EAT"
+                owner._walk_food_type = ftype  # 记录食物类型供EAT使用
+                owner.target_x, owner.target_y = fx, fy
+                owner.fsm.set_state("WALK", owner)
+                return
+
+        # 无可用食物，退回空闲
+        owner.fsm.set_state("IDLE", owner)
 
     def update(self, owner: object) -> None:
-        """不会被执行（enter已切换状态），保留以防万一"""
+        """不会被执行（enter已切换状态）"""
         pass
-
-    @staticmethod
-    def _find_nearest_forest(owner: object) -> Optional[tuple[int, int]]:
-        """扫描全图，返回距离最近且有剩余食物的FOREST tile"""
-        game_map: GameMap = owner._map
-        resource_mgr = getattr(owner, '_resource_mgr', None)
-        best: Optional[tuple[int, int]] = None
-        best_dist: float = float("inf")
-        for y in range(20):
-            for x in range(20):
-                if game_map.get_tile(x, y) != TileType.FOREST:
-                    continue
-                # 跳过已耗尽的森林
-                if resource_mgr is not None and resource_mgr.is_depleted(x, y):
-                    continue
-                dist = (x - owner.x) ** 2 + (y - owner.y) ** 2
-                if dist < best_dist:
-                    best_dist = dist
-                    best = (x, y)
-        return best
 
 
 class EatState(State):
-    """进食状态：从森林消耗食物，depleted时只能微量缓解"""
+    """进食状态：消耗当前位置的食物（森林/蘑菇/鱼）"""
 
     def enter(self, owner: object) -> None:
-        """消耗森林食物资源降低饥饿值"""
-        resource_mgr = getattr(owner, '_resource_mgr', None)
-        food_found = False
+        """消耗当前位置的食物降低饥饿值"""
+        food_type = getattr(owner, '_walk_food_type', "forest")
+        rm = getattr(owner, '_resource_mgr', None)
+        nutrition = 0
 
-        if resource_mgr is not None:
-            # 在当前位置及相邻tile寻找森林食物
-            for dx, dy in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]:
-                if resource_mgr.collect(owner.x + dx, owner.y + dy) > 0:
-                    food_found = True
-                    break
+        if rm is not None:
+            if food_type == "forest":
+                # 在当前tile及相邻tile寻找森林食物
+                for dx, dy in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    if rm.collect(owner.x + dx, owner.y + dy) > 0:
+                        nutrition = 30
+                        break
+                if nutrition == 0:
+                    nutrition = 5  # 微量缓解
+            else:
+                nutrition = rm.collect_food_at(owner.x, owner.y, food_type)
 
-        if food_found:
-            # 有食物：正常进食
-            owner.hunger = max(STAT_MIN, owner.hunger - 30)
-        else:
-            # 无食物：微量缓解（表示在找但没吃到）
-            owner.hunger = max(STAT_MIN, owner.hunger - 5)
+        owner.hunger = max(STAT_MIN, owner.hunger - nutrition)
+        owner._walk_food_type = "forest"  # 重置
 
     def update(self, owner: object) -> None:
         """进食完成，回到空闲"""
+        _tick_eco(owner)
         owner.fsm.set_state("IDLE", owner)
 
 
@@ -199,21 +195,19 @@ class SleepState(State):
                 owner._move_cooldown = 0
                 owner.fsm.set_state("WALK", owner)
                 return
-        # 已在房屋或找不到房屋：原地睡觉
 
     def update(self, owner: object) -> None:
         """每帧恢复能量0.5点"""
+        _tick_eco(owner)
         owner.energy = min(STAT_MAX, owner.energy + 0.5)
 
     @staticmethod
     def _is_at_house(owner: object) -> bool:
-        """检查NPC当前是否站在HOUSE tile上"""
         tile = owner._map.get_tile(owner.x, owner.y)
         return tile == TileType.HOUSE
 
     @staticmethod
     def _find_nearest_house(owner: object) -> Optional[tuple[int, int]]:
-        """从地图上找到最近的HOUSE tile坐标"""
         game_map: GameMap = owner._map
         houses = game_map.get_houses()
         if not houses:

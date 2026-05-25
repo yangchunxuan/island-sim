@@ -7,7 +7,19 @@
 import pytest
 from world.map import GameMap
 from world.resources import ResourceManager
-from config import MAP_WIDTH, MAP_HEIGHT, TileType, TILE_PROPERTIES
+from config import (
+    MAP_WIDTH,
+    MAP_HEIGHT,
+    TileType,
+    TILE_PROPERTIES,
+    FOOD_PER_FOREST,
+    FOREST_REGROWTH_DAYS,
+    DAY_TICKS,
+    MUSHROOM_FRESH_DURATION,
+    MUSHROOM_OLD_DURATION,
+    MUSHROOM_ROTTEN_DURATION,
+    FISH_LIFETIME,
+)
 
 
 class TestGameMap:
@@ -227,8 +239,233 @@ class TestResourceManager:
             for _ in range(3):
                 mgr.collect(x, y)
             assert mgr.is_depleted(x, y)
-            # 运行大量update也不应重生
-            for _ in range(2000):
-                mgr.update()
-            assert mgr.is_depleted(x, y)
             assert mgr.get_food_amount(x, y) == 0
+
+
+# ── T-017 生态循环测试 ──
+
+
+class TestForestRegrowth:
+    """森林恢复系统测试"""
+
+    def test_regrowth_starts_on_deplete(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        assert len(forests) > 0
+        x, y = forests[0]
+        for _ in range(FOOD_PER_FOREST):
+            mgr.collect(x, y)
+        assert mgr.is_depleted(x, y)
+        assert (x, y) in mgr._regrowth_timer
+        assert mgr._regrowth_timer[(x, y)] > 0
+
+    def test_no_instant_regrowth(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        x, y = forests[0]
+        for _ in range(FOOD_PER_FOREST):
+            mgr.collect(x, y)
+        for _ in range(1000):
+            mgr.update()
+        assert mgr.is_depleted(x, y)
+
+    def test_regrowth_after_time(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        x, y = forests[0]
+        for _ in range(FOOD_PER_FOREST):
+            mgr.collect(x, y)
+        total = FOREST_REGROWTH_DAYS * DAY_TICKS + 10
+        for _ in range(total * 5):
+            mgr.update()
+        assert not mgr.is_depleted(x, y)
+        assert mgr.get_food_amount(x, y) == FOOD_PER_FOREST
+
+    def test_high_footfall_delays_regrowth_once(self) -> None:
+        """高脚流量延迟恢复一次，不会永久阻塞"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        x, y = forests[0]
+        for _ in range(FOOD_PER_FOREST):
+            mgr.collect(x, y)
+        assert mgr.is_depleted(x, y)
+        assert (x, y) in mgr._regrowth_timer
+        original_timer = mgr._regrowth_timer[(x, y)]
+        # 制造高脚流量
+        for _ in range(100):
+            mgr.record_traffic(x, y)
+        # 强制让计时器到期
+        mgr._regrowth_timer[(x, y)] = 1
+        # 跑几帧触发处理
+        for _ in range(10):
+            mgr.update()
+        # 应延迟（timer被重置，不在regrowth_delayed中）
+        assert mgr.is_depleted(x, y), "高脚流量应立即延长恢复"
+        assert (x, y) in mgr._regrowth_delayed
+        # 再次强制让计时器到期
+        mgr._regrowth_timer[(x, y)] = 1
+        for _ in range(10):
+            mgr.update()
+        # 延迟过一次后不应再延迟
+        assert not mgr.is_depleted(x, y), "延迟一次后应能恢复"
+
+class TestMushroomSystem:
+    """蘑菇系统测试"""
+
+    def test_spawn_zones_exist(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        assert len(mgr._mushroom_spawn_zones) > 0
+
+    def test_mushroom_lifecycle(self) -> None:
+        """直接用age推断阶段而非循环调用update"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        pos = (10, 10)
+        # fresh阶段
+        mgr._mushrooms[pos] = {"age": 20}
+        assert mgr.is_edible_mushroom(10, 10)
+        assert mgr._get_mushroom_stage(mgr._mushrooms[pos]) == "fresh"
+        # old阶段
+        mgr._mushrooms[pos] = {"age": MUSHROOM_FRESH_DURATION + 20}
+        assert mgr.is_edible_mushroom(10, 10)
+        assert mgr._get_mushroom_stage(mgr._mushrooms[pos]) == "old"
+        # rotten阶段
+        mgr._mushrooms[pos] = {"age": MUSHROOM_FRESH_DURATION + MUSHROOM_OLD_DURATION + 10}
+        assert not mgr.is_edible_mushroom(10, 10)
+        assert mgr._get_mushroom_stage(mgr._mushrooms[pos]) == "rotten"
+        # gone阶段
+        total = MUSHROOM_FRESH_DURATION + MUSHROOM_OLD_DURATION + MUSHROOM_ROTTEN_DURATION + 20
+        mgr._mushrooms[pos] = {"age": total}
+        assert mgr._get_mushroom_stage(mgr._mushrooms[pos]) == "gone"
+
+    def test_fresh_mushroom_nutrition(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        mgr._mushrooms[(5, 5)] = {"age": 20}  # fresh阶段（age>=10）
+        from config import MUSHROOM_NUTRITION_FRESH
+        assert mgr.collect_mushroom(5, 5) == MUSHROOM_NUTRITION_FRESH
+        assert (5, 5) not in mgr._mushrooms
+
+    def test_old_mushroom_nutrition(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        mgr._mushrooms[(5, 5)] = {"age": MUSHROOM_FRESH_DURATION + 20}
+        from config import MUSHROOM_NUTRITION_OLD
+        assert mgr.collect_mushroom(5, 5) == MUSHROOM_NUTRITION_OLD
+
+    def test_rotten_mushroom_inedible(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        total = MUSHROOM_FRESH_DURATION + MUSHROOM_OLD_DURATION + 10
+        mgr._mushrooms[(5, 5)] = {"age": total}
+        assert not mgr.is_edible_mushroom(5, 5)
+        assert mgr.collect_mushroom(5, 5) == 0
+
+    def test_mushroom_update_removes_expired(self) -> None:
+        """update()应移除已消失的蘑菇"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        pos = (10, 10)
+        total = MUSHROOM_FRESH_DURATION + MUSHROOM_OLD_DURATION + MUSHROOM_ROTTEN_DURATION + 20
+        mgr._mushrooms[pos] = {"age": total}
+        # 运行5次update确保去重通过后能处理一次
+        for _ in range(10):
+            mgr.update()
+        assert pos not in mgr._mushrooms
+
+
+class TestFishSystem:
+    """鱼类系统测试"""
+
+    def test_fish_spawn_zones_exist(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        assert len(mgr._fish_spawn_zones) > 0
+
+    def test_fish_lifetime(self) -> None:
+        """直接用age判断生命周期，而非循环调用update"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        mgr._fish[(5, 5)] = {"age": 0}
+        assert mgr.is_edible_fish(5, 5)
+        # 直接设置age超过生命周期
+        mgr._fish[(5, 5)] = {"age": FISH_LIFETIME + 10}
+        assert not mgr.is_edible_fish(5, 5)
+        # 运行update检查是否被移除
+        for _ in range(10):
+            mgr.update()
+        assert (5, 5) not in mgr._fish
+
+    def test_fish_collect(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        mgr._fish[(5, 5)] = {"age": 0}
+        from config import FISH_NUTRITION
+        assert mgr.collect_fish(5, 5) == FISH_NUTRITION
+        assert (5, 5) not in mgr._fish
+        assert mgr.collect_fish(5, 5) == 0
+
+
+class TestResourceHotspots:
+    """资源热点测试"""
+
+    def test_mushroom_hotspots_exist(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        assert len(mgr._mushroom_hotspot) > 0
+        rates = list(mgr._mushroom_hotspot.values())
+        assert max(rates) > min(rates) + 0.1
+
+    def test_fish_hotspots_exist(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        assert len(mgr._fish_hotspot) > 0
+        rates = list(mgr._fish_hotspot.values())
+        assert max(rates) > min(rates) + 0.1
+
+    def test_find_nearest_food_forest(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        result = mgr.find_nearest_food(10, 10)
+        assert result is not None
+        assert result[2] == "forest"
+
+    def test_find_nearest_food_none(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        for (fx, fy) in list(mgr.available_forests()):
+            for _ in range(FOOD_PER_FOREST):
+                mgr.collect(fx, fy)
+        result = mgr.find_nearest_food(10, 10)
+        assert result is None
+
+
+class TestTrafficSystem:
+    """人流量追踪测试"""
+
+    def test_traffic_records(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        mgr.record_traffic(5, 5)
+        assert mgr.get_traffic(5, 5) > 0
+
+    def test_recent_traffic_decays(self) -> None:
+        """近期人流量随时间衰减"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        mgr.record_traffic(5, 5)
+        mgr.record_traffic(5, 5)
+        initial = mgr.get_recent_traffic(5, 5)
+        for _ in range(100):
+            mgr.update()
+        assert mgr.get_recent_traffic(5, 5) < initial
+
+    def test_no_traffic_unvisited(self) -> None:
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        assert mgr.get_traffic(0, 0) == 0
