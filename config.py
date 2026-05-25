@@ -129,6 +129,33 @@ STAT_MAX: int = 100
 """NPC基本属性（hunger/energy/mood）的取值范围"""
 
 
+# ── 资源系统 ──
+
+FOOD_PER_FOREST: int = 3
+"""每个FOREST tile的初始食物储量，归零后永久depleted"""
+
+
+# ── NPC Weakened 系统 ──
+
+WEAKENED_HUNGER_THRESHOLD: int = 80
+"""hunger超过此阈值持续一段时间后NPC进入weakened状态"""
+
+WEAKENED_RECOVERY_THRESHOLD: int = 50
+"""hunger低于此阈值并稳定后退出weakened状态"""
+
+WEAKENED_TRIGGER_DURATION: int = 60
+"""hunger超过阈值持续此帧数后触发weakened（约1秒）"""
+
+WEAKENED_MOVE_COOLDOWN: int = 10
+"""weakened状态下的移动冷却帧数（正常为5）"""
+
+WEAKENED_IDLE_MULTIPLIER: float = 2.0
+"""weakened状态下的空闲时间倍率"""
+
+HUNGER_MOOD_DECAY_RATE: float = 0.1
+"""hunger > 60 时mood每帧衰减量"""
+
+
 # ── 时间系统 ──
 
 DAY_TICKS: int = 1200

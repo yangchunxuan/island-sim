@@ -8,21 +8,33 @@ from typing import Any, Dict
 
 import pytest
 
-from config import NPC_INITIAL_DATA, STAT_MAX, STAT_MIN
+from config import (
+    FOOD_PER_FOREST,
+    HUNGER_MOOD_DECAY_RATE,
+    NPC_INITIAL_DATA,
+    STAT_MAX,
+    STAT_MIN,
+    TileType,
+    WEAKENED_HUNGER_THRESHOLD,
+    WEAKENED_TRIGGER_DURATION,
+)
 from npc.behavior import register_npc_states
 from npc.npc import NPC
 from world.map import GameMap
+from world.resources import ResourceManager
 from world.time_system import TimeSystem
 
 
-def _make_npc(overrides: Dict[str, Any] | None = None) -> NPC:
+def _make_npc(overrides: Dict[str, Any] | None = None,
+              with_resources: bool = True) -> NPC:
     """构造测试用NPC（使用第一个NPC初始数据）"""
     data = dict(NPC_INITIAL_DATA[0])
     if overrides:
         data.update(overrides)
     ts = TimeSystem()
     gm = GameMap()
-    npc = NPC(data, ts, gm)
+    rm = ResourceManager(gm._grid) if with_resources else None
+    npc = NPC(data, ts, gm, resource_mgr=rm)
     register_npc_states(npc)
     return npc
 
@@ -181,10 +193,142 @@ def test_sleep_recovers_energy() -> None:
 
 
 def test_eat_reduces_hunger() -> None:
-    """验证进食降低饥饿值"""
+    """验证进食消耗森林食物并降低饥饿值"""
     npc = _make_npc({"hunger": 85, "energy": 80})
     _advance_to_day(npc)
+    # 把NPC放到有食物的森林上
+    for y in range(20):
+        for x in range(20):
+            if npc._map.get_tile(x, y) == TileType.FOREST:
+                npc.x, npc.y = x, y
+                break
+        else:
+            continue
+        break
     # 强制进入EAT状态
     npc.fsm.set_state("EAT", npc)
-    # EAT.enter 中 hunger -= 30
+    # EAT.enter 从森林采集食物，hunger -= 30
     assert npc.hunger == pytest.approx(55.0, rel=1e-3)
+
+
+# ── T-015 资源压力 / 行为后果测试 ──
+
+
+def test_hunger_affects_mood() -> None:
+    """验证hunger > 60 时mood每帧下降"""
+    npc = _make_npc({"hunger": 80, "mood": 80, "energy": 100})
+    _advance_to_day(npc)
+    for _ in range(10):
+        npc.update()
+    # hunger每帧+0.1, mood每帧-0.1(因hunger>60)
+    assert npc.mood < 80
+    assert npc.mood == pytest.approx(80 - 10 * HUNGER_MOOD_DECAY_RATE, rel=1e-2)
+
+
+def test_low_hunger_no_mood_decay() -> None:
+    """验证hunger <= 60 时mood不因饥饿下降"""
+    npc = _make_npc({"hunger": 40, "mood": 80, "energy": 100})
+    _advance_to_day(npc)
+    for _ in range(10):
+        npc.update()
+    # habit前几帧hunger <=60时mood不降,超过后才降
+    assert npc.mood == pytest.approx(80, abs=2)
+
+
+def test_weakened_after_prolonged_hunger() -> None:
+    """验证hunger持续超过阈值后触发weakened"""
+    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100})
+    _advance_to_day(npc)
+    # 初始不weakened
+    assert not npc._weakened
+    # 持续高hunger帧数超过阈值
+    for _ in range(WEAKENED_TRIGGER_DURATION + 10):
+        npc.update()
+        if npc._weakened:
+            break
+    assert npc._weakened, "持续高hunger应触发weakened"
+
+
+def test_weakened_recovery() -> None:
+    """验证hunger降至阈值以下后解除weakened"""
+    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100})
+    _advance_to_day(npc)
+    # 触发weakened
+    for _ in range(WEAKENED_TRIGGER_DURATION + 20):
+        npc.update()
+    assert npc._weakened
+    # 强制降低hunger，等待恢复
+    npc.hunger = 30
+    for _ in range(WEAKENED_TRIGGER_DURATION):
+        npc.update()
+        if not npc._weakened:
+            break
+    assert not npc._weakened, "hunger降低后应解除weakened"
+
+
+def test_weakened_slows_movement() -> None:
+    """验证weakened时移动冷却更长"""
+    npc = _make_npc({"hunger": 50, "energy": 100, "mood": 100, "x": 5, "y": 5})
+    _advance_to_day(npc)
+    # 直接设置weakened标志（而非等游戏循环触发）
+    npc._weakened = True
+    # 设置WALK状态，目标为相邻可通行tile
+    npc.target_x, npc.target_y = 6, 5
+    npc.fsm.set_state("WALK", npc)
+    # 重置cooldown然后跑一帧
+    npc._move_cooldown = 0
+    npc.fsm.update(npc)
+    # weakened应使用WEAKENED_MOVE_COOLDOWN=10
+    assert npc._move_cooldown == 10, f"weakened冷却应为10, 实际{npc._move_cooldown}"
+
+
+def test_weakened_longer_idle() -> None:
+    """验证weakened时空闲时间更长"""
+    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100})
+    _advance_to_day(npc)
+    # 触发weakened
+    for _ in range(WEAKENED_TRIGGER_DURATION + 20):
+        npc.update()
+    assert npc._weakened
+    # 进入IDLE
+    npc.fsm.set_state("IDLE", npc)
+    # _idle_timer应在60-180基础上乘以2
+    assert npc._idle_timer >= 120, f"weakened idle timer应>=120, 实际{npc._idle_timer}"
+
+
+def test_eat_at_depleted_forest_less_food() -> None:
+    """验证depleted森林进食只能微量缓解"""
+    npc = _make_npc({"hunger": 85, "energy": 80}, with_resources=True)
+    _advance_to_day(npc)
+    # 把NPC放到森林上，然后采光该森林
+    forest_pos = None
+    for y in range(20):
+        for x in range(20):
+            if npc._map.get_tile(x, y) == TileType.FOREST:
+                forest_pos = (x, y)
+                break
+        if forest_pos:
+            break
+    assert forest_pos
+    npc.x, npc.y = forest_pos
+    # 采光森林
+    for _ in range(FOOD_PER_FOREST):
+        npc._resource_mgr.collect(forest_pos[0], forest_pos[1])
+    # 现在进食只能微量缓解
+    npc.fsm.set_state("EAT", npc)
+    # hunger 从85降到80（减5，不是减30）
+    assert npc.hunger == pytest.approx(80.0, rel=1e-3)
+
+
+def test_search_food_skips_depleted_forest() -> None:
+    """验证SEARCH_FOOD不会选择已耗尽的森林"""
+    npc = _make_npc({"hunger": 85, "energy": 100}, with_resources=True)
+    _advance_to_day(npc)
+    # 把所有森林采光
+    for (fx, fy) in list(npc._resource_mgr.available_forests()):
+        for _ in range(FOOD_PER_FOREST):
+            npc._resource_mgr.collect(fx, fy)
+    # 没有可用森林时，SEARCH_FOOD应退回IDLE
+    npc.hunger = 80
+    npc.fsm.set_state("SEARCH_FOOD", npc)
+    assert npc.get_state() == "IDLE", "无可用森林时应退回IDLE"

@@ -6,7 +6,7 @@
 
 import pytest
 from world.map import GameMap
-from world.resources import ResourceManager, Resource
+from world.resources import ResourceManager
 from config import MAP_WIDTH, MAP_HEIGHT, TileType, TILE_PROPERTIES
 
 
@@ -132,46 +132,84 @@ class TestTileProperties:
 
 
 class TestResourceManager:
-    """ResourceManager资源系统测试"""
+    """ResourceManager有限食物资源测试"""
 
     def test_resources_spawn_on_forest(self) -> None:
-        """资源应在FOREST tile上生成"""
+        """每个FOREST tile应分配初始食物储量"""
         game_map = GameMap()
         mgr = ResourceManager(game_map._grid)
-        count = mgr.resource_count("food")
-        assert count > 0, "FOREST tile上应生成食物资源"
+        count = mgr.forest_count()
+        assert count > 0, "地图上应有FOREST tile"
+        assert mgr.total_food_remaining() == count * 3, (
+            f"每个森林应有3食物，共{count}个森林，总量应为{count*3}"
+        )
 
-    def test_no_resource_on_non_resource_tiles(self) -> None:
-        """非产出型tile上不应有资源"""
+    def test_all_forests_have_food_amount(self) -> None:
+        """每个FOREST tile的food_amount应为FOOD_PER_FOREST"""
         game_map = GameMap()
         mgr = ResourceManager(game_map._grid)
-        for y in range(MAP_HEIGHT):
-            for x in range(MAP_WIDTH):
-                tile = game_map.get_tile(x, y)
-                if TILE_PROPERTIES[tile]["resource_type"] is None:
-                    assert mgr.get_resource(x, y) is None, (
-                        f"({x},{y}) {tile}不应有资源"
+        for y in range(len(game_map._grid)):
+            for x in range(len(game_map._grid[y])):
+                if game_map._grid[y][x] == TileType.FOREST:
+                    assert mgr.get_food_amount(x, y) == 3, (
+                        f"FOREST ({x},{y}) 应有3食物"
                     )
 
-    def test_collect_returns_amount(self) -> None:
-        """采集资源返回正数"""
+    def test_no_resource_on_non_resource_tiles(self) -> None:
+        """非FOREST tile上不应有食物储量"""
         game_map = GameMap()
         mgr = ResourceManager(game_map._grid)
-        resources = mgr.active_resources()
-        if resources:
-            r = resources[0]
-            amount = mgr.collect(r.x, r.y)
-            assert amount > 0
+        for y in range(len(game_map._grid)):
+            for x in range(len(game_map._grid[y])):
+                if game_map._grid[y][x] != TileType.FOREST:
+                    assert mgr.get_food_amount(x, y) == 0, (
+                        f"({x},{y}) {game_map._grid[y][x]}不应有食物"
+                    )
 
-    def test_collect_removes_resource(self) -> None:
-        """采集后资源点不再active"""
+    def test_collect_returns_one(self) -> None:
+        """采集有食物的森林返回1"""
         game_map = GameMap()
         mgr = ResourceManager(game_map._grid)
-        resources = mgr.active_resources()
-        if resources:
-            r = resources[0]
-            mgr.collect(r.x, r.y)
-            assert mgr.get_resource(r.x, r.y) is None
+        forests = mgr.available_forests()
+        if forests:
+            x, y = forests[0]
+            amount = mgr.collect(x, y)
+            assert amount == 1
+
+    def test_collect_decrements_food(self) -> None:
+        """采集后森林食物量减少"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        if forests:
+            x, y = forests[0]
+            before = mgr.get_food_amount(x, y)
+            mgr.collect(x, y)
+            assert mgr.get_food_amount(x, y) == before - 1
+
+    def test_depleted_forest_returns_zero(self) -> None:
+        """耗尽后的森林采集返回0"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        if forests:
+            x, y = forests[0]
+            # 采光所有食物
+            for _ in range(3):
+                mgr.collect(x, y)
+            assert mgr.is_depleted(x, y)
+            assert mgr.collect(x, y) == 0
+
+    def test_depleted_forest_not_in_available(self) -> None:
+        """耗尽后的森林不出现在available_forests中"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        if forests:
+            x, y = forests[0]
+            for _ in range(3):
+                mgr.collect(x, y)
+            assert (x, y) not in mgr.available_forests()
 
     def test_collect_empty_tile_returns_zero(self) -> None:
         """采集无效坐标返回0"""
@@ -179,16 +217,18 @@ class TestResourceManager:
         mgr = ResourceManager(game_map._grid)
         assert mgr.collect(-1, -1) == 0
 
-    def test_update_refreshes_collected_resource(self) -> None:
-        """update()推进计时器后资源应重生"""
+    def test_no_resource_regeneration(self) -> None:
+        """耗尽后的森林即使update也不会重生食物"""
         game_map = GameMap()
-        mgr = ResourceManager(game_map._grid, refresh_ticks=10)
-        resources = mgr.active_resources()
-        if resources:
-            r = resources[0]
-            mgr.collect(r.x, r.y)
-            assert mgr.get_resource(r.x, r.y) is None
-            # 推进到刷新
-            for _ in range(15):
+        mgr = ResourceManager(game_map._grid)
+        forests = mgr.available_forests()
+        if forests:
+            x, y = forests[0]
+            for _ in range(3):
+                mgr.collect(x, y)
+            assert mgr.is_depleted(x, y)
+            # 运行大量update也不应重生
+            for _ in range(2000):
                 mgr.update()
-            assert mgr.get_resource(r.x, r.y) is not None, "资源未刷新"
+            assert mgr.is_depleted(x, y)
+            assert mgr.get_food_amount(x, y) == 0

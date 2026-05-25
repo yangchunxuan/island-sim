@@ -6,7 +6,14 @@ NPC角色模块 — Island Sim v1
 
 from typing import Any, Dict, List, Optional
 
-from config import STAT_MIN, STAT_MAX
+from config import (
+    HUNGER_MOOD_DECAY_RATE,
+    STAT_MAX,
+    STAT_MIN,
+    WEAKENED_HUNGER_THRESHOLD,
+    WEAKENED_RECOVERY_THRESHOLD,
+    WEAKENED_TRIGGER_DURATION,
+)
 from systems.state_machine import StateMachine
 from world.map import GameMap
 from world.time_system import TimeSystem
@@ -25,7 +32,8 @@ class NPC:
     """NPC角色类，管理属性和行为状态"""
 
     def __init__(self, data: Dict[str, Any],
-                 time_system: TimeSystem, game_map: GameMap) -> None:
+                 time_system: TimeSystem, game_map: GameMap,
+                 resource_mgr: Any = None) -> None:
         self.name: str = data["name"]
         self.gender: str = data["gender"]
         self.x: int = data["x"]
@@ -36,6 +44,7 @@ class NPC:
         self.inventory: List[Any] = list(data.get("inventory", []))
         self._time: TimeSystem = time_system
         self._map: GameMap = game_map
+        self._resource_mgr: Any = resource_mgr
         # 行走目标坐标
         self.target_x: Optional[int] = None
         self.target_y: Optional[int] = None
@@ -47,6 +56,9 @@ class NPC:
         self._move_cooldown: int = 0
         # A*路径（步进列表）
         self._path: list[tuple[int, int]] = []
+        # Weakened系统：长时间高hunger导致效率下降
+        self._weakened: bool = False
+        self._hunger_high_duration: int = 0  # hunger超过阈值的连续帧数
 
         # 状态机，初始为IDLE
         self.fsm: StateMachine = StateMachine(initial_state="IDLE")
@@ -62,11 +74,33 @@ class NPC:
         else:
             self.energy = max(STAT_MIN, self.energy - 0.02)
 
+        # 高hunger导致mood缓慢下降
+        if self.hunger > 60:
+            self.mood = max(STAT_MIN, self.mood - HUNGER_MOOD_DECAY_RATE)
+
+        # 更新weakened状态
+        self._update_weakened()
+
         # 检查强制状态转换
         self._check_state_transitions()
 
         # 更新当前状态
         self.fsm.update(self)
+
+    def _update_weakened(self) -> None:
+        """跟踪持续高hunger时间，触发/解除weakened状态"""
+        if self.hunger > WEAKENED_HUNGER_THRESHOLD:
+            self._hunger_high_duration += 1
+            if self._hunger_high_duration >= WEAKENED_TRIGGER_DURATION and not self._weakened:
+                self._weakened = True
+                print(f"[NPC] {self.name} became weakened")
+        else:
+            self._hunger_high_duration = max(
+                0, self._hunger_high_duration - 2
+            )
+            if self.hunger <= WEAKENED_RECOVERY_THRESHOLD and self._weakened:
+                self._weakened = False
+                print(f"[NPC] {self.name} recovered from weakened")
 
     def _check_state_transitions(self) -> None:
         """检查并触发强制状态转换（生存优先级高于自由行为）"""
