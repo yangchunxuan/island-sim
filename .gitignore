@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
-data/*.json
+world_reports/
+data/world_memory.json
