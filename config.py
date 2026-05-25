@@ -72,6 +72,24 @@ TILE_COLORS: dict[TileType, tuple[int, int, int]] = {
     TileType.CAMPFIRE: COLOR_CAMPFIRE,
 }
 
+# ── Tile属性 ──
+
+TILE_PROPERTIES: dict[TileType, dict[str, object]] = {
+    TileType.WATER:   {"walkable": False, "resource_type": None, "can_sleep": False, "can_socialize": False},
+    TileType.SAND:    {"walkable": True,  "resource_type": None, "can_sleep": False, "can_socialize": False},
+    TileType.GRASS:   {"walkable": True,  "resource_type": None, "can_sleep": False, "can_socialize": False},
+    TileType.FOREST:  {"walkable": True,  "resource_type": "food", "can_sleep": False, "can_socialize": False},
+    TileType.ROCK:    {"walkable": False, "resource_type": None, "can_sleep": False, "can_socialize": False},
+    TileType.HOUSE:   {"walkable": True,  "resource_type": None, "can_sleep": True,  "can_socialize": False},
+    TileType.CAMPFIRE:{"walkable": True,  "resource_type": None, "can_sleep": False, "can_socialize": True},
+}
+"""每种tile类型的行为属性:
+walkable — NPC能否通行;
+resource_type — 可采集的资源类型 (None/\"food\");
+can_sleep — NPC能否在此睡觉;
+can_socialize — NPC能否在此社交。
+"""
+
 
 # ── NPC初始数据 ──
 

@@ -1,12 +1,13 @@
 """
 地图模块单元测试 — Island Sim v1
 
-覆盖：地图大小、边界检查、可行走性、建筑物数量。
+覆盖：地图大小、边界检查、可行走性、建筑物数量、Tile属性、资源系统。
 """
 
 import pytest
 from world.map import GameMap
-from config import MAP_WIDTH, MAP_HEIGHT, TileType
+from world.resources import ResourceManager, Resource
+from config import MAP_WIDTH, MAP_HEIGHT, TileType, TILE_PROPERTIES
 
 
 class TestGameMap:
@@ -90,3 +91,104 @@ class TestGameMap:
                 if game_map.get_tile(x, y) == TileType.CAMPFIRE:
                     campfire_count += 1
         assert campfire_count == 1
+
+
+class TestTileProperties:
+    """TILE_PROPERTIES配置正确性测试"""
+
+    def test_all_types_have_properties(self) -> None:
+        """每个TileType都有对应的属性配置"""
+        for tile_type in TileType:
+            assert tile_type in TILE_PROPERTIES, f"{tile_type}缺少属性配置"
+
+    def test_water_walkable_false(self) -> None:
+        assert TILE_PROPERTIES[TileType.WATER]["walkable"] is False
+
+    def test_rock_walkable_false(self) -> None:
+        assert TILE_PROPERTIES[TileType.ROCK]["walkable"] is False
+
+    def test_grass_walkable_true(self) -> None:
+        assert TILE_PROPERTIES[TileType.GRASS]["walkable"] is True
+
+    def test_forest_resource_type_food(self) -> None:
+        assert TILE_PROPERTIES[TileType.FOREST]["resource_type"] == "food"
+
+    def test_house_can_sleep_true(self) -> None:
+        assert TILE_PROPERTIES[TileType.HOUSE]["can_sleep"] is True
+
+    def test_campfire_can_socialize_true(self) -> None:
+        assert TILE_PROPERTIES[TileType.CAMPFIRE]["can_socialize"] is True
+
+    def test_is_walkable_consistent_with_properties(self) -> None:
+        """is_walkable()返回值和TILE_PROPERTIES walkable一致"""
+        game_map = GameMap()
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                tile = game_map.get_tile(x, y)
+                expected = TILE_PROPERTIES[tile]["walkable"]
+                assert game_map.is_walkable(x, y) == expected, (
+                    f"({x},{y}) tile={tile}: is_walkable与属性不一致"
+                )
+
+
+class TestResourceManager:
+    """ResourceManager资源系统测试"""
+
+    def test_resources_spawn_on_forest(self) -> None:
+        """资源应在FOREST tile上生成"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        count = mgr.resource_count("food")
+        assert count > 0, "FOREST tile上应生成食物资源"
+
+    def test_no_resource_on_non_resource_tiles(self) -> None:
+        """非产出型tile上不应有资源"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        for y in range(MAP_HEIGHT):
+            for x in range(MAP_WIDTH):
+                tile = game_map.get_tile(x, y)
+                if TILE_PROPERTIES[tile]["resource_type"] is None:
+                    assert mgr.get_resource(x, y) is None, (
+                        f"({x},{y}) {tile}不应有资源"
+                    )
+
+    def test_collect_returns_amount(self) -> None:
+        """采集资源返回正数"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        resources = mgr.active_resources()
+        if resources:
+            r = resources[0]
+            amount = mgr.collect(r.x, r.y)
+            assert amount > 0
+
+    def test_collect_removes_resource(self) -> None:
+        """采集后资源点不再active"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        resources = mgr.active_resources()
+        if resources:
+            r = resources[0]
+            mgr.collect(r.x, r.y)
+            assert mgr.get_resource(r.x, r.y) is None
+
+    def test_collect_empty_tile_returns_zero(self) -> None:
+        """采集无效坐标返回0"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid)
+        assert mgr.collect(-1, -1) == 0
+
+    def test_update_refreshes_collected_resource(self) -> None:
+        """update()推进计时器后资源应重生"""
+        game_map = GameMap()
+        mgr = ResourceManager(game_map._grid, refresh_ticks=10)
+        resources = mgr.active_resources()
+        if resources:
+            r = resources[0]
+            mgr.collect(r.x, r.y)
+            assert mgr.get_resource(r.x, r.y) is None
+            # 推进到刷新
+            for _ in range(15):
+                mgr.update()
+            assert mgr.get_resource(r.x, r.y) is not None, "资源未刷新"

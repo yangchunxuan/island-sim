@@ -6,7 +6,7 @@
 
 import math
 import pygame
-from config import MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, TileType, TILE_COLORS
+from config import MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, TileType, TILE_COLORS, TILE_PROPERTIES
 
 
 class GameMap:
@@ -57,11 +57,12 @@ class GameMap:
         return self._grid[y][x]
 
     def is_walkable(self, x: int, y: int) -> bool:
-        """判断指定坐标是否可行走"""
+        """判断指定坐标是否可行走（由TILE_PROPERTIES驱动）"""
         tile = self.get_tile(x, y)
         if tile is None:
             return False
-        return tile not in (TileType.WATER, TileType.ROCK)
+        props = TILE_PROPERTIES.get(tile, {})
+        return bool(props.get("walkable", False))
 
     def draw(self, surface: pygame.Surface) -> None:
         """将地图渲染到pygame surface"""
