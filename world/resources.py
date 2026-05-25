@@ -64,6 +64,12 @@ class ResourceManager:
         # ── 生态帧计数器（NPC多次调用去重用） ──
         self._eco_call_count: int = 0
 
+        # ── 区域压力参考（T-019） ──
+        self._pressure_map: object = None
+
+        # ── 生态迁移（T-022） ──
+        self._eco_tick: int = 0  # 生态帧计数器（去重后的实际计数）
+
         self._init_food(grid)
         self._init_spawn_zones(grid)
         self._init_hotspots(grid)
@@ -119,6 +125,24 @@ class ResourceManager:
             h = hash((x * 3 + 7, y * 5 + 11)) & 0xFFFF
             self._fish_hotspot[(x, y)] = 1.0 + (h % 100) / 100.0 * 1.5
 
+    # ── 生态迁移（T-022） ──
+
+    def _update_hotspot_drift(self) -> None:
+        """根据区域压力调整热点倍率：高压区热点漂走，低压区形成新热点"""
+        pm_spawn = getattr(self._pressure_map, 'get_spawn_multiplier', None)
+        if pm_spawn is None:
+            return
+        for zone in self._mushroom_spawn_zones:
+            x, y = zone
+            target = pm_spawn(x, y)  # 0.5/1.0/1.5
+            current = self._mushroom_hotspot.get(zone, 1.0)
+            self._mushroom_hotspot[zone] = max(0.3, min(3.0, current + (target - current) * 0.02))
+        for zone in self._fish_spawn_zones:
+            x, y = zone
+            target = pm_spawn(x, y)
+            current = self._fish_hotspot.get(zone, 1.0)
+            self._fish_hotspot[zone] = max(0.3, min(3.0, current + (target - current) * 0.02))
+
     # ══════════════════════════════════════════
     # 森林食物系统
     # ══════════════════════════════════════════
@@ -158,18 +182,27 @@ class ResourceManager:
         if self._food_stock[(x, y)] <= 0:
             self._depleted.add((x, y))
             print(f"[WORLD] Forest ({x},{y}) depleted")
-            self._regrowth_timer[(x, y)] = FOREST_REGROWTH_DAYS * DAY_TICKS
+            base = FOREST_REGROWTH_DAYS * DAY_TICKS
+            pm = getattr(self._pressure_map, 'get_regrowth_multiplier', None)
+            if pm:
+                base = int(base / pm(x, y))
+            self._regrowth_timer[(x, y)] = base
         return 1
 
     # ── 森林恢复 ──
 
     def _process_regrowth(self) -> None:
-        """处理depleted森林的恢复计时（脚流量高则延迟一次，但不永久阻塞）"""
+        """处理depleted森林的恢复计时（低压区域优先恢复，实现生态迁移）"""
         expired = []
         for pos, ticks in self._regrowth_timer.items():
             self._regrowth_timer[pos] = ticks - 1
             if self._regrowth_timer[pos] <= 0:
                 expired.append(pos)
+
+        # T-022: 低压区域优先恢复（生态迁移：恢复波从健康区扩散）
+        pm = getattr(self._pressure_map, 'get_score', None)
+        if pm and len(expired) > 1:
+            expired.sort(key=lambda pos: pm(pos[0], pos[1]))
 
         for pos in expired:
             x, y = pos
@@ -244,12 +277,15 @@ class ResourceManager:
         if is_night:
             spawn_chance *= MUSHROOM_SPAWN_NIGHT_MULT
 
+        pressure_mult = getattr(self._pressure_map, 'get_spawn_multiplier', None)
+
         for zone in self._mushroom_spawn_zones:
             if zone in self._mushrooms:
                 continue  # 已有蘑菇
             # 热点倍率
             hotspot = self._mushroom_hotspot.get(zone, 1.0)
-            if random.random() < spawn_chance * hotspot:
+            p_mult = pressure_mult(zone[0], zone[1]) if pressure_mult else 1.0
+            if random.random() < spawn_chance * hotspot * p_mult:
                 self._mushrooms[zone] = {"age": 0}
                 x, y = zone
                 print(f"[ECO] Mushroom spawned at ({x},{y})")
@@ -299,11 +335,14 @@ class ResourceManager:
         if is_night:
             spawn_chance *= FISH_SPAWN_NIGHT_REDUCTION
 
+        pressure_mult = getattr(self._pressure_map, 'get_spawn_multiplier', None)
+
         for zone in self._fish_spawn_zones:
             if zone in self._fish:
                 continue
             hotspot = self._fish_hotspot.get(zone, 1.0)
-            if random.random() < spawn_chance * hotspot:
+            p_mult = pressure_mult(zone[0], zone[1]) if pressure_mult else 1.0
+            if random.random() < spawn_chance * hotspot * p_mult:
                 self._fish[zone] = {"age": 0}
                 x, y = zone
                 print(f"[ECO] Fish spawned at ({x},{y})")
@@ -322,6 +361,10 @@ class ResourceManager:
     # ══════════════════════════════════════════
     # 人流量系统
     # ══════════════════════════════════════════
+
+    def set_pressure_map(self, pressure_map: object) -> None:
+        """注入区域压力图引用（T-019）"""
+        self._pressure_map = pressure_map
 
     def record_traffic(self, x: int, y: int) -> None:
         """记录NPC经过某tile（累积+近期）"""
@@ -414,6 +457,11 @@ class ResourceManager:
         # 5个NPC每帧各调用一次，每5次才实际处理一次
         if self._eco_call_count % 5 != 1:
             return
+
+        self._eco_tick += 1
+        # 每60生态帧(~5秒)更新一次热点漂移
+        if self._eco_tick % 60 == 0:
+            self._update_hotspot_drift()
 
         self._process_regrowth()
         self._process_mushrooms()

@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from config import (
     HUNGER_MOOD_DECAY_RATE,
+    NPC_BEHAVIOR_TRAITS,
     STAT_MAX,
     STAT_MIN,
     WEAKENED_HUNGER_THRESHOLD,
@@ -42,6 +43,16 @@ class NPC:
         self.energy: float = float(data["energy"])
         self.mood: float = float(data["mood"])
         self.inventory: List[Any] = list(data.get("inventory", []))
+        # ── T-020 行为倾向（支持data覆盖用于测试）──
+        config_traits = NPC_BEHAVIOR_TRAITS.get(self.name, {})
+        self.risk_tolerance: float = float(data.get("risk_tolerance", config_traits.get("risk_tolerance", 0.5)))
+        """冒险倾向 0(保守)~1(冒险)"""
+        self.laziness: float = float(data.get("laziness", config_traits.get("laziness", 0.5)))
+        """懒惰程度 0(勤快)~1(懒惰)"""
+        self.food_preference: float = float(data.get("food_preference", config_traits.get("food_preference", 0.5)))
+        """食物偏好 0(森林)~1(水产/蘑菇)"""
+        self.exploration_bias: float = float(data.get("exploration_bias", config_traits.get("exploration_bias", 0.5)))
+        """探索倾向 0(恋家)~1(爱探索)"""
         self._time: TimeSystem = time_system
         self._map: GameMap = game_map
         self._resource_mgr: Any = resource_mgr

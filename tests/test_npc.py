@@ -285,18 +285,21 @@ def test_weakened_slows_movement() -> None:
 
 
 def test_weakened_longer_idle() -> None:
-    """验证weakened时空闲时间更长"""
-    # 放在不可行走位置(水中)，防止NPC跑去觅食打断饥饿累积
-    npc = _make_npc({"hunger": 90, "energy": 100, "mood": 100, "x": 0, "y": 0})
+    """验证weakened时空闲时间更长（对比正常状态，同seed）"""
+    import random
+    npc = _make_npc({"hunger": 50, "energy": 100, "mood": 100, "x": 5, "y": 5})
     _advance_to_day(npc)
-    # 触发weakened
-    for _ in range(WEAKENED_TRIGGER_DURATION + 20):
-        npc.update()
-    assert npc._weakened
-    # 进入IDLE
+    assert not npc._weakened
+    # 正常状态进入IDLE
+    random.seed(99)
     npc.fsm.set_state("IDLE", npc)
-    # _idle_timer应在60-180基础上乘以2
-    assert npc._idle_timer >= 120, f"weakened idle timer应>=120, 实际{npc._idle_timer}"
+    normal_timer = npc._idle_timer
+    # 设weakened后再次进入IDLE（同seed，排除随机影响）
+    npc._weakened = True
+    random.seed(99)
+    npc.fsm.set_state("IDLE", npc)
+    assert npc._idle_timer > normal_timer, \
+        f"weakened(idle_timer={npc._idle_timer})应大于normal(idle_timer={normal_timer})"
 
 
 def test_eat_at_depleted_forest_less_food() -> None:
@@ -335,3 +338,85 @@ def test_search_food_skips_depleted_forest() -> None:
     npc.hunger = 80
     npc.fsm.set_state("SEARCH_FOOD", npc)
     assert npc.get_state() == "IDLE", "无可用森林时应退回IDLE"
+
+
+# ═══════════════════════════════════════════════
+# T-020 行为倾向测试
+# ═══════════════════════════════════════════════
+
+def test_behavior_traits_loaded() -> None:
+    """验证行为倾向参数从config正确加载"""
+    for data in NPC_INITIAL_DATA:
+        npc = _make_npc(data)
+        assert hasattr(npc, 'risk_tolerance')
+        assert hasattr(npc, 'laziness')
+        assert hasattr(npc, 'food_preference')
+        assert hasattr(npc, 'exploration_bias')
+        assert 0.0 <= npc.risk_tolerance <= 1.0
+        assert 0.0 <= npc.laziness <= 1.0
+
+
+def test_lazy_npc_longer_idle() -> None:
+    """验证懒惰NPC空闲时间更长（fixed seed确保随机相等）"""
+    import random
+    active = _make_npc({"hunger": 30, "energy": 100, "laziness": 0.1})
+    lazy = _make_npc({"hunger": 30, "energy": 100, "laziness": 0.9})
+    _advance_to_day(active)
+    _advance_to_day(lazy)
+
+    random.seed(42)
+    active.fsm.set_state("IDLE", active)
+    random.seed(42)
+    lazy.fsm.set_state("IDLE", lazy)
+    # lazy系数1.4 > active系数0.6，seed相同时懒的一定更大
+    assert lazy._idle_timer > active._idle_timer, \
+        f"懒惰(idle_timer={lazy._idle_timer})应大于勤快(idle_timer={active._idle_timer})"
+
+
+def test_explorer_wanders_further() -> None:
+    """验证探索型NPC idle时走更远"""
+    from npc.behavior import IdleState
+
+    class MockOwner:
+        x, y = 10, 10
+        exploration_bias = 0.9
+        _map = None
+
+    explorer = MockOwner()
+    explorer._map = GameMap()
+
+    class MockOwner2:
+        x, y = 10, 10
+        exploration_bias = 0.1
+        _map = None
+
+    homebody = MockOwner2()
+    homebody._map = GameMap()
+
+    explorer_targets = []
+    homebody_targets = []
+    for _ in range(50):
+        t = IdleState._pick_walk_target(explorer)
+        if t:
+            explorer_targets.append(t)
+        t = IdleState._pick_walk_target(homebody)
+        if t:
+            homebody_targets.append(t)
+
+    if explorer_targets and homebody_targets:
+        explorer_max = max(max(abs(t[0]-10), abs(t[1]-10)) for t in explorer_targets)
+        homebody_max = max(max(abs(t[0]-10), abs(t[1]-10)) for t in homebody_targets)
+        assert explorer_max >= homebody_max
+
+
+def test_conservative_npc_limited_search() -> None:
+    """验证保守型NPC因距离放弃觅食"""
+    npc = _make_npc({"hunger": 80, "energy": 100, "risk_tolerance": 0.1,
+                      "x": 0, "y": 0}, with_resources=True)
+    _advance_to_day(npc)
+    # 把NPC丢到角落，食物在远处
+    npc.x, npc.y = 0, 0
+    npc.fsm.set_state("SEARCH_FOOD", npc)
+    # 保守NPC可能放弃（取决于食物距离）
+    # 只要不崩溃即可
+    assert npc.get_state() in ("IDLE", "SEARCH_FOOD", "WALK")

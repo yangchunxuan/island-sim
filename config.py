@@ -243,3 +243,27 @@ TILE_LABELS: dict[TileType, str] = {
     TileType.HOUSE: "H",
     TileType.CAMPFIRE: "C",
 }
+
+
+# ── T-019 区域压力系统 ──
+
+REGION_SIZE: int = 5
+"""每个区域包含的tile数（20/5=4x4区域）"""
+
+
+# ── T-020 NPC行为倾向 ──
+
+NPC_BEHAVIOR_TRAITS: dict[str, dict[str, float]] = {
+    "阿强": {"risk_tolerance": 0.8, "laziness": 0.3, "food_preference": 0.6, "exploration_bias": 0.7},
+    "阿珍": {"risk_tolerance": 0.5, "laziness": 0.4, "food_preference": 0.5, "exploration_bias": 0.4},
+    "大壮": {"risk_tolerance": 0.6, "laziness": 0.5, "food_preference": 0.4, "exploration_bias": 0.5},
+    "小美": {"risk_tolerance": 0.3, "laziness": 0.4, "food_preference": 0.7, "exploration_bias": 0.3},
+    "老李": {"risk_tolerance": 0.2, "laziness": 0.8, "food_preference": 0.3, "exploration_bias": 0.2},
+}
+"""每个NPC的行为倾向参数"""
+
+
+# ── T-023 头模模拟 ──
+
+HEADLESS_TICK_RATE: int = 1000
+"""headless模式下每秒模拟tick数"""

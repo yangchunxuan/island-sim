@@ -41,13 +41,16 @@ def _is_weakened(owner: object) -> bool:
 
 
 class IdleState(State):
-    """空闲状态：weakened时空闲时间加倍"""
+    """空闲状态：weakened时空闲时间加倍，懒惰型NPC更久"""
 
     def enter(self, owner: object) -> None:
         """进入空闲，设置随机等待帧数"""
         base = random.randint(60, 180)
         if _is_weakened(owner):
             base = int(base * WEAKENED_IDLE_MULTIPLIER)
+        # 懒惰型NPC空闲更久
+        laziness = getattr(owner, 'laziness', 0.5)
+        base = int(base * (0.5 + laziness))
         owner._idle_timer = base
 
     def update(self, owner: object) -> None:
@@ -64,11 +67,13 @@ class IdleState(State):
 
     @staticmethod
     def _pick_walk_target(owner: object) -> Optional[tuple[int, int]]:
-        """在当前位置附近随机选一个可行走tile"""
+        """在当前位置附近随机选一个可行走tile（探索型NPC走更远）"""
         game_map: GameMap = owner._map
+        exploration = getattr(owner, 'exploration_bias', 0.5)
+        max_range = int(2 + exploration * 8)  # 2~10格
         for _ in range(20):
-            dx = random.randint(-3, 3)
-            dy = random.randint(-3, 3)
+            dx = random.randint(-max_range, max_range)
+            dy = random.randint(-max_range, max_range)
             tx = max(0, min(19, owner.x + dx))
             ty = max(0, min(19, owner.y + dy))
             if game_map.is_walkable(tx, ty) and (tx, ty) != (owner.x, owner.y):
@@ -132,14 +137,22 @@ class SearchFoodState(State):
     """觅食状态：查找最近可用食物源（森林/蘑菇/鱼）并用A*走过去"""
 
     def enter(self, owner: object) -> None:
-        """进入觅食，查找最近未耗尽的食物"""
+        """进入觅食，查找食物（受risk_tolerance影响搜寻范围）"""
         rm = getattr(owner, '_resource_mgr', None)
         if rm is not None:
+            risk = getattr(owner, 'risk_tolerance', 0.5)
+            max_dist = int(4 + risk * 16)  # 保守4格~冒险20格
             target = rm.find_nearest_food(owner.x, owner.y)
             if target:
                 fx, fy, ftype = target
+                dist = abs(fx - owner.x) + abs(fy - owner.y)
+                if dist > max_dist and risk < 0.5:
+                    # 保守型NPC不走太远觅食，试试更近的食物
+                    # 实际上find_nearest_food已返回最近，说明确实没有近的食物
+                    owner.fsm.set_state("IDLE", owner)
+                    return
                 owner._walk_purpose = "EAT"
-                owner._walk_food_type = ftype  # 记录食物类型供EAT使用
+                owner._walk_food_type = ftype
                 owner.target_x, owner.target_y = fx, fy
                 owner.fsm.set_state("WALK", owner)
                 return
