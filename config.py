@@ -169,6 +169,23 @@ OVERLAY_TILE: int = 1
 OVERLAY_STATS: int = 2
 OVERLAY_PATH: int = 3
 
+# ── T-016 可视化常量 ──
+
+COLOR_DEPLETED_FOREST: tuple[int, int, int] = (80, 95, 70)
+"""depleted森林的灰绿色"""
+
+NIGHT_OVERLAY_ALPHA: int = 80
+"""夜晚遮罩alpha值（0-255）"""
+
+COLOR_WEAKENED_RING: tuple[int, int, int] = (160, 160, 160)
+"""weakened NPC灰色指示环"""
+
+HUD_FOOD_COLOR: tuple[int, int, int] = (100, 200, 100)
+HUD_DEPLETED_COLOR: tuple[int, int, int] = (200, 100, 100)
+HUD_WEAKENED_COLOR: tuple[int, int, int] = (200, 200, 100)
+HUD_MOOD_COLOR: tuple[int, int, int] = (100, 150, 255)
+
+
 # Tile类型缩写（debug网格用）
 TILE_LABELS: dict[TileType, str] = {
     TileType.WATER: "W",
