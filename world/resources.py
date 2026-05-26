@@ -34,7 +34,7 @@ from config import (
 # fertility参数来自 ecology_rules.yaml
 FERTILITY_REGEN_THRESHOLD = 0.3       # fertility高于此值蘑菇才能再生
 FERTILITY_COST_PER_REGEN = 0.1        # 每次蘑菇再生消耗的fertility
-FERTILITY_NATURAL_RECOVERY = 0.005    # 无再生时fertility自然恢复
+FERTILITY_NATURAL_RECOVERY = 0.02     # 无再生时fertility自然恢复 — FR-001a: 0.005→0.02
 MUSHROOM_FERTILITY_BASE_RATE = 0.03   # 蘑菇再生基础概率（ecology_rules.yaml spawn_base_rate）
 
 

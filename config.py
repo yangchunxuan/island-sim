@@ -334,14 +334,14 @@ SEASON_HUNGER_RATE: dict[str, float] = {
 """饥饿速度：冬季更快"""
 
 # 地力系统
-FERTILITY_TRAFFIC_DECAY: float = 0.0001
-"""每单位人流量导致的 fertility 衰减"""
-FERTILITY_RECOVERY_RATE: float = 0.0005
-"""每tick fertility 恢复速度（无人访问时）"""
-FERTILITY_COLLAPSE_PENALTY: float = 0.15
-"""一次 collapse 导致的 fertility 永久损失"""
-FERTILITY_BASE_REGEN: float = 0.0001
-"""fertility 向 base_fertility 回归速率"""
+FERTILITY_TRAFFIC_DECAY: float = 0.00002
+"""每单位人流量导致的 fertility 衰减 — FR-001a: 0.0001→0.00002"""
+FERTILITY_RECOVERY_RATE: float = 0.005
+"""每tick fertility 恢复速度（无人访问时）— FR-001a: 0.0005→0.005"""
+FERTILITY_COLLAPSE_PENALTY: float = 0.03
+"""一次 collapse 导致的 fertility 损失（分摊到每天）— FR-001a: 0.15→0.03"""
+FERTILITY_BASE_REGEN: float = 0.002
+"""fertility 向 base_fertility 回归速率 — FR-001a: 0.0001→0.002"""
 FERTILITY_MIN: float = 0.05
 """fertility 下限"""
 FERTILITY_MAX: float = 1.0
