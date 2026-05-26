@@ -300,8 +300,9 @@ class TestFertilitySystem(unittest.TestCase):
 
     def test_refugia_lists_fertile_regions(self):
         refugia = self.pm.get_refugia_list()
-        self.assertIn("西北森林", refugia)
-        self.assertIn("西部林区", refugia)
+        # 湿度>=0.7 → base_fertility=0.9 → 超过 REFUGIA_THRESHOLD(0.65)
+        self.assertIn("东北海岸", refugia)
+        self.assertIn("东海湾", refugia)
 
     def test_climate_assignment(self):
         """区域有正确气候分类"""

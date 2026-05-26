@@ -76,7 +76,7 @@ class RegionPressureMap:
 
         # ── 地力系统（T-027） ──
         self._fertility: dict[str, float] = {}  # region_id → current_fertility
-        self._base_fertility: dict[str, float] = {}
+        self.base_fertility: dict[str, float] = {}
         self._load_fertility()
 
         # ── 气候区（T-027） ──
@@ -90,12 +90,23 @@ class RegionPressureMap:
 
     # ── 初始化 ──
 
+    @staticmethod
+    def _humidity_to_fertility(humidity: float) -> float:
+        """根据 humidity 推导 base_fertility（静态规则，运行时不变）"""
+        if humidity >= 0.7:
+            return 0.9
+        if humidity <= 0.35:
+            return 0.3
+        return 0.6
+
     def _load_fertility(self) -> None:
-        """从区域定义加载基础 fertility"""
+        """根据区域 humidity 加载基础 fertility（静态数据，运行时不变）"""
         for r in self._region_data:
             rid = r["id"]
-            fert = max(FERTILITY_MIN, min(FERTILITY_MAX, r.get("fertility", 0.5)))
-            self._base_fertility[rid] = fert
+            hum = r.get("humidity", 0.5)
+            fert = max(FERTILITY_MIN, min(FERTILITY_MAX,
+                       self._humidity_to_fertility(hum)))
+            self.base_fertility[rid] = fert
             self._fertility[rid] = fert  # 初始值与base相同
 
     def _load_climate(self) -> None:
@@ -177,6 +188,13 @@ class RegionPressureMap:
             return 0.5
         return self._fertility.get(rid, 0.5)
 
+    def get_base_fertility(self, region_name: str) -> float:
+        """返回指定区域的静态基础地力（由 humidity 推导，运行时不可变）"""
+        for r in self._region_data:
+            if r["name"] == region_name or r["id"] == region_name:
+                return self.base_fertility.get(r["id"], 0.5)
+        return 0.5
+
     def is_refugia(self, rx: int, ry: int) -> bool:
         """判断区域是否为生态避难所"""
         rid = self._grid_to_region_id(rx, ry)
@@ -207,7 +225,7 @@ class RegionPressureMap:
             rid = r["id"]
             rx, ry = r["grid_x"], r["grid_y"]
             current = self._fertility[rid]
-            base = self._base_fertility[rid]
+            base = self.base_fertility[rid]
 
             # 计算本区域的流量
             total_traffic = 0
@@ -437,7 +455,7 @@ class RegionPressureMap:
             rid = r["id"]
             result.append({
                 "name": r["name"],
-                "base_fertility": round(self._base_fertility.get(rid, 0.5), 2),
+                "base_fertility": round(self.base_fertility.get(rid, 0.5), 2),
                 "current_fertility": round(self._fertility.get(rid, 0.5), 2),
                 "trend": self._get_fertility_trend(rid),
             })
@@ -461,7 +479,7 @@ class RegionPressureMap:
     def _get_fertility_trend(self, rid: str) -> str:
         """fertility 趋势判断"""
         current = self._fertility.get(rid, 0.5)
-        base = self._base_fertility.get(rid, 0.5)
+        base = self.base_fertility.get(rid, 0.5)
         diff = current - base
         if diff > 0.05:
             return "increasing"
