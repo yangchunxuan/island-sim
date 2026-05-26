@@ -30,6 +30,13 @@ from config import (
     TileType,
 )
 
+# ── T-031 FR-001 Stage 2b: 蘑菇肥力动态 ──
+# fertility参数来自 ecology_rules.yaml
+FERTILITY_REGEN_THRESHOLD = 0.3       # fertility高于此值蘑菇才能再生
+FERTILITY_COST_PER_REGEN = 0.1        # 每次蘑菇再生消耗的fertility
+FERTILITY_NATURAL_RECOVERY = 0.005    # 无再生时fertility自然恢复
+MUSHROOM_FERTILITY_BASE_RATE = 0.03   # 蘑菇再生基础概率（ecology_rules.yaml spawn_base_rate）
+
 
 class ResourceManager:
     """生态循环管理器：森林恢复、蘑菇/鱼生命周期、资源热点、人流量"""
@@ -72,6 +79,12 @@ class ResourceManager:
 
         # ── 生态迁移（T-022） ──
         self._eco_tick: int = 0  # 生态帧计数器（去重后的实际计数）
+
+        # ── T-031 FR-001 Stage 2b: 蘑菇肥力动态 ──
+        # current_fertility[region_id] = 当前fertility，从RegionPressureMap.base_fertility拷贝
+        self.current_fertility: dict[str, float] = {}
+        # tile坐标 → region_id 的预计算映射（在set_pressure_map时初始化）
+        self._tile_region_map: dict[tuple[int, int], str] = {}
 
         self._init_food(grid)
         self._init_spawn_zones(grid)
