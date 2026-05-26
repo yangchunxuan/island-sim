@@ -85,6 +85,8 @@ class ResourceManager:
         self.current_fertility: dict[str, float] = {}
         # tile坐标 → region_id 的预计算映射（在set_pressure_map时初始化）
         self._tile_region_map: dict[tuple[int, int], str] = {}
+        # 每tick有再生的区域集合（在update开始时重置）
+        self._spawned_regions: set = set()
 
         self._init_food(grid)
         self._init_spawn_zones(grid)
@@ -300,11 +302,22 @@ class ResourceManager:
         for zone in self._mushroom_spawn_zones:
             if zone in self._mushrooms:
                 continue  # 已有蘑菇
+
+            # T-031: fertility检查 — fertility低于阈值则无法再生
+            rid = self._tile_region_map.get(zone)
+            if rid is None or self.current_fertility.get(rid, 0) <= FERTILITY_REGEN_THRESHOLD:
+                continue
+
+            fert_factor = self.current_fertility[rid] * MUSHROOM_FERTILITY_BASE_RATE
+
             # 热点倍率
             hotspot = self._mushroom_hotspot.get(zone, 1.0)
             p_mult = pressure_mult(zone[0], zone[1]) if pressure_mult else 1.0
-            if random.random() < spawn_chance * hotspot * p_mult * season_mult:
+            if random.random() < spawn_chance * hotspot * p_mult * season_mult * fert_factor:
                 self._mushrooms[zone] = {"age": 0}
+                # T-031: 再生消耗fertility
+                self.current_fertility[rid] = max(0.0, self.current_fertility[rid] - FERTILITY_COST_PER_REGEN)
+                self._spawned_regions.add(rid)
                 x, y = zone
                 print(f"[ECO] Mushroom spawned at ({x},{y})")
 
@@ -384,6 +397,18 @@ class ResourceManager:
     def set_pressure_map(self, pressure_map: object) -> None:
         """注入区域压力图引用（T-019）"""
         self._pressure_map = pressure_map
+
+        # T-031: 从base_fertility初始化current_fertility
+        if hasattr(pressure_map, 'base_fertility'):
+            for rid, base_val in pressure_map.base_fertility.items():
+                self.current_fertility[rid] = base_val
+
+        # T-031: 预计算tile→region映射
+        if hasattr(pressure_map, '_tile_to_region_id'):
+            for zone in self._mushroom_spawn_zones:
+                rid = pressure_map._tile_to_region_id(zone[0], zone[1])
+                if rid:
+                    self._tile_region_map[zone] = rid
 
     def set_time_system(self, time_system: object) -> None:
         """注入时间系统引用（T-027 季节）"""
@@ -497,6 +522,10 @@ class ResourceManager:
             return
 
         self._eco_tick += 1
+
+        # T-031: 重置生育跟踪
+        self._spawned_regions = set()
+
         # 每60生态帧(~5秒)更新一次热点漂移
         if self._eco_tick % 60 == 0:
             self._update_hotspot_drift()
@@ -505,6 +534,17 @@ class ResourceManager:
         self._process_mushrooms()
         self._process_fish()
         self._decay_traffic()
+
+        # T-031: fertility自然恢复（无再生区域恢复fertility）
+        for rid in list(self.current_fertility.keys()):
+            if rid not in self._spawned_regions:
+                self.current_fertility[rid] += FERTILITY_NATURAL_RECOVERY
+            # clamp: [0.0, base_fertility]
+            base = 1.0
+            pm_base = getattr(self._pressure_map, 'base_fertility', None)
+            if pm_base:
+                base = pm_base.get(rid, 1.0)
+            self.current_fertility[rid] = max(0.0, min(base, self.current_fertility[rid]))
 
     # ══════════════════════════════════════════
     # 可视化查询（供main.py渲染用，只读访问）
