@@ -8,6 +8,8 @@ import random
 from typing import Optional
 
 from config import (
+    FEAR_FLEE_THRESHOLD,
+    REGION_SIZE,
     STAT_MIN,
     STAT_MAX,
     TileType,
@@ -194,12 +196,19 @@ class SearchFoodState(State):
     """觅食状态：查找最近可用食物源（森林/蘑菇/鱼）并用A*走过去"""
 
     def enter(self, owner: object) -> None:
-        """进入觅食，查找食物（受risk_tolerance影响搜寻范围）"""
+        """进入觅食，查找食物（受risk_tolerance和fear影响）"""
         rm = getattr(owner, '_resource_mgr', None)
         if rm is not None:
             risk = getattr(owner, 'risk_tolerance', 0.5)
+            fear = getattr(owner, 'fear', 0.0)
             max_dist = int(4 + risk * 16)  # 保守4格~冒险20格
-            target = rm.find_nearest_food(owner.x, owner.y)
+
+            # FR-002: 高恐惧时回避当前区域，倾向更远食物
+            if fear > FEAR_FLEE_THRESHOLD:
+                target = self._find_distant_food(owner, rm)
+            else:
+                target = rm.find_nearest_food(owner.x, owner.y)
+
             if target:
                 fx, fy, ftype = target
                 dist = abs(fx - owner.x) + abs(fy - owner.y)
@@ -216,6 +225,42 @@ class SearchFoodState(State):
 
         # 无可用食物，退回空闲
         owner.fsm.set_state("IDLE", owner)
+
+    @staticmethod
+    def _find_distant_food(
+        owner: object, rm: object
+    ) -> Optional[tuple[int, int, str]]:
+        """高恐惧时寻找当前区域外的食物源（回避区域内的近距离食物）"""
+        ox, oy = owner.x, owner.y
+        min_dist = REGION_SIZE  # 跳过当前区域内（5格内）的食物
+        best_dist = float("inf")
+        best: Optional[tuple[int, int, str]] = None
+
+        # 检查森林食物
+        for fx, fy in rm.available_forests():
+            dist = abs(fx - ox) + abs(fy - oy)
+            if dist >= min_dist and dist < best_dist:
+                best_dist = dist
+                best = (fx, fy, "forest")
+
+        # 检查蘑菇
+        for mx, my, _stage in rm.available_mushrooms():
+            dist = abs(mx - ox) + abs(my - oy)
+            if dist >= min_dist and dist < best_dist:
+                best_dist = dist
+                best = (mx, my, "mushroom")
+
+        # 检查鱼
+        for fx, fy in rm.available_fish():
+            dist = abs(fx - ox) + abs(fy - oy)
+            if dist >= min_dist and dist < best_dist:
+                best_dist = dist
+                best = (fx, fy, "fish")
+
+        # 没有区域外的食物则回退到最近食物（总比饿死好）
+        if best is None:
+            return rm.find_nearest_food(owner.x, owner.y)
+        return best
 
     def update(self, owner: object) -> None:
         """不会被执行（enter已切换状态）"""

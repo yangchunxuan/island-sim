@@ -45,8 +45,8 @@ def _advance_to_day(npc: NPC) -> None:
 
 
 def _advance_to_night(npc: NPC) -> None:
-    """将时间推进到夜晚（hour 22 = tick 1100）"""
-    npc._time._tick_count = 1100
+    """将时间推进到夜晚（hour 22 = tick 220, 基于 DAY_TICKS=240）"""
+    npc._time._tick_count = 220
 
 
 # ── 初始化测试 ──

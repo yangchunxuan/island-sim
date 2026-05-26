@@ -10,6 +10,10 @@ if TYPE_CHECKING:
     from npc.ai_brain import AIBrain
 
 from config import (
+    FEAR_DECAY_RATE,
+    FEAR_HUNGER_THRESHOLD,
+    FEAR_INCREASE_RATE,
+    FEAR_MAX,
     HUNGER_MOOD_DECAY_RATE,
     NPC_BEHAVIOR_TRAITS,
     STAT_MAX,
@@ -72,6 +76,10 @@ class NPC:
         """AI决策大脑引用（None表示不使用AI）"""
         self._ai_idle_frames: int = 0
         """连续空闲帧数，超1800帧(30秒)触发AI长期规划"""
+        # ── FR-002 恐惧系统 ──
+        self.fear: float = 0.0
+        """恐惧值 0(冷静)~1(恐慌)，受饥饿影响"""
+
         self._prev_mood: float = self.mood
         """上一帧mood值，用于检测重大情绪波动"""
         # 行走目标坐标
@@ -106,6 +114,12 @@ class NPC:
         # 高hunger导致mood缓慢下降
         if self.hunger > 60:
             self.mood = max(STAT_MIN, self.mood - HUNGER_MOOD_DECAY_RATE)
+
+        # ── FR-002 恐惧系统：饥饿影响恐惧值 ──
+        if self.hunger > FEAR_HUNGER_THRESHOLD:
+            self.fear = min(FEAR_MAX, self.fear + FEAR_INCREASE_RATE)
+        elif self.hunger < FEAR_HUNGER_THRESHOLD:
+            self.fear = max(0.0, self.fear - FEAR_DECAY_RATE)
 
         # 更新weakened状态
         self._update_weakened()
@@ -191,5 +205,6 @@ class NPC:
             "hunger": int(self.hunger),
             "energy": int(self.energy),
             "mood": int(self.mood),
+            "fear": int(self.fear * 100),
             "state": self.get_state(),
         }

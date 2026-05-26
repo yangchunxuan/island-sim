@@ -203,10 +203,28 @@ HUNGER_MOOD_DECAY_RATE: float = 0.1
 """hunger > 60 时mood每帧衰减量"""
 
 
+# ── FR-002 NPC恐惧系统 ──
+
+FEAR_HUNGER_THRESHOLD: int = 70
+"""hunger超过此阈值时fear增加"""
+
+FEAR_INCREASE_RATE: float = 0.05
+"""每tick fear增加量（当hunger > FEAR_HUNGER_THRESHOLD）"""
+
+FEAR_DECAY_RATE: float = 0.02
+"""每tick fear衰减量（当hunger < FEAR_HUNGER_THRESHOLD）"""
+
+FEAR_MAX: float = 1.0
+"""fear上限"""
+
+FEAR_FLEE_THRESHOLD: float = 0.7
+"""fear超过此阈值时NPC倾向回避当前区域觅食"""
+
+
 # ── 时间系统 ──
 
-DAY_TICKS: int = 1200
-"""一个完整的白天+夜晚所需的tick数（60FPS下约20秒）"""
+DAY_TICKS: int = 240
+"""一个完整的白天+夜晚所需的tick数（60FPS下约4秒）"""
 
 
 # ── Debug Overlay ──
