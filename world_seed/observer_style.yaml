@@ -1,0 +1,59 @@
+# 观察者日志风格配置
+#
+# 定义 observer 输出日志的格式和内容偏好。
+# 用于 event_formatter、narrative_generator 和 live_feed。
+
+# ──────────────────────────────────
+# 基本风格
+# ──────────────────────────────────
+style: scientific
+tone: cold                    # cold / neutral / clinical
+detail_level: medium          # low / medium / high
+
+# ──────────────────────────────────
+# 输出内容开关
+# ──────────────────────────────────
+include:
+  statistics: true
+  region_analysis: true
+  ecosystem_summary: true
+  npc_state: true
+  long_term_trends: true
+  milestone_alerts: true
+  hourly_snapshot: false       # v1预留
+
+# ──────────────────────────────────
+# 事件等级颜色
+# ──────────────────────────────────
+levels:
+  INFO: "[INFO]"
+  WARNING: "[WARNING]"
+  CRITICAL: "[CRITICAL]"
+  ECOLOGY: "[ECO]"
+  MOVEMENT: "[MOVE]"
+
+# ──────────────────────────────────
+# 输出格式
+# ──────────────────────────────────
+format:
+  timestamp: "tick"           # tick / day
+  prefix_level: true           # 是否带等级前缀
+  include_coordinates: true    # 是否显示坐标
+  include_region_name: true    # 是否映射到区域名
+  line_max_length: 120         # 单行最大字符数
+
+# ──────────────────────────────────
+# 数据聚合
+# ──────────────────────────────────
+aggregation:
+  narrative_interval: 1200     # 叙事报告间隔（tick）
+  tracker_interval: 60         # 区域/压力统计更新间隔
+  snapshot_interval: 600       # 全状态快照间隔
+
+# ──────────────────────────────────
+# 过滤
+# ──────────────────────────────────
+filter:
+  min_event_level: "INFO"
+  hide_repetitive: true        # 连续相同事件是否折叠
+  repetitive_threshold: 5      # 连续N次相同事件后折叠

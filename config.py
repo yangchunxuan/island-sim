@@ -281,3 +281,100 @@ NPC_BEHAVIOR_TRAITS: dict[str, dict[str, float]] = {
 
 HEADLESS_TICK_RATE: int = 1000
 """headless模式下每秒模拟tick数"""
+
+
+# ── T-028 AI决策层 ──
+
+AI_CONFIG: dict[str, object] = {
+    "api_key": "sk-d7ecb163e0e14edb84ffc74297d5214c",
+    "base_url": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    # 每NPC每60秒最多1次API调用
+    "rate_limit_seconds": 60,
+    # API请求超时秒数
+    "timeout": 10,
+    # 每次响应的最大token数
+    "max_tokens": 100,
+    # 线程池最大并发数
+    "max_workers": 2,
+}
+"""AI决策层的DeepSeek API配置"""
+
+
+# ── T-027 地理生态层 ──
+
+# 季节系统
+SEASON_CYCLE_DAYS: int = 120
+"""完整四季循环天数（每季30天）"""
+SPRING_DAYS: int = 30
+SUMMER_DAYS: int = 30
+AUTUMN_DAYS: int = 30
+WINTER_DAYS: int = 30
+
+# 季节影响倍率
+SEASON_MUSHROOM_BONUS: dict[str, float] = {
+    "spring": 2.5, "summer": 1.0, "autumn": 1.5, "winter": 0.3,
+}
+"""蘑菇生成倍率：春季暴涨，冬季极少"""
+SEASON_FISH_BONUS: dict[str, float] = {
+    "spring": 1.0, "summer": 2.0, "autumn": 1.2, "winter": 0.2,
+}
+"""鱼类生成倍率：夏季丰产，冬季极少"""
+SEASON_REGROWTH_BONUS: dict[str, float] = {
+    "spring": 1.8, "summer": 1.2, "autumn": 0.8, "winter": 0.3,
+}
+"""森林恢复倍率：春季最快，冬季极慢"""
+SEASON_ENERGY_COST: dict[str, float] = {
+    "spring": 0.05, "summer": 0.06, "autumn": 0.08, "winter": 0.15,
+}
+"""每tick能量消耗：冬季最高"""
+SEASON_HUNGER_RATE: dict[str, float] = {
+    "spring": 0.1, "summer": 0.12, "autumn": 0.14, "winter": 0.18,
+}
+"""饥饿速度：冬季更快"""
+
+# 地力系统
+FERTILITY_TRAFFIC_DECAY: float = 0.0001
+"""每单位人流量导致的 fertility 衰减"""
+FERTILITY_RECOVERY_RATE: float = 0.0005
+"""每tick fertility 恢复速度（无人访问时）"""
+FERTILITY_COLLAPSE_PENALTY: float = 0.15
+"""一次 collapse 导致的 fertility 永久损失"""
+FERTILITY_BASE_REGEN: float = 0.0001
+"""fertility 向 base_fertility 回归速率"""
+FERTILITY_MIN: float = 0.05
+"""fertility 下限"""
+FERTILITY_MAX: float = 1.0
+"""fertility 上限"""
+FERTILITY_SPAWN_MULT_MIN: float = 0.5
+"""fertility 最低资源生成倍率（fert=0.0时）"""
+FERTILITY_SPAWN_MULT_MAX: float = 1.5
+"""fertility 最高资源生成倍率（fert=1.0时）"""
+
+# 空间生态（压力扩散）
+SPATIAL_DIFFUSION_RATE: float = 0.02
+"""每tick压力向邻居扩散量"""
+SPATIAL_RECOVERY_SPREAD: float = 0.01
+"""低压力区对邻居的恢复扩散量"""
+SPATIAL_DIFFUSION_MIN: float = 0.1
+"""触发扩散的最小压力值"""
+SPATIAL_RECOVERY_BONUS_MAX: float = 0.15
+"""邻居给予的最大恢复加成"""
+
+# 生态避难所（Refugia）天然高 fertility 区域
+REFUGIA_THRESHOLD: float = 0.65
+"""fertility >= 此值视为潜在避难所"""
+REFUGIA_COLLAPSE_RESISTANCE: float = 0.15
+"""避难所区域 collapse 阈值额外提升"""
+REFUGIA_RECOVERY_BONUS: float = 1.5
+"""避难所恢复速度倍率"""
+
+# 迁徙走廊
+MIGRATION_CORRIDOR_THRESHOLD: int = 10
+"""达到此阈值认定一条迁徙走廊形成"""
+MIGRATION_TRACK_WINDOW: int = 3600
+"""迁徙统计的tick窗口"""
+
+# 地理报告间隔
+GEO_REPORT_INTERVAL: int = 2400
+"""每2400 tick 输出一次地理报告（约2天）"""

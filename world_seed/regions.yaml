@@ -1,0 +1,230 @@
+# 世界区域定义
+#
+# 4×4 网格宏观区域，每个区域包含 5×5 tiles。
+# 区域属性影响资源生成、NPC行为倾向和生态压力计算。
+# 坐标范围：grid_x 0-3, grid_y 0-3 → 对应 tile 坐标 (grid_x*5 到 grid_x*5+4)
+
+regions:
+  - id: nw_forest
+    name: "西北森林"
+    grid_x: 0
+    grid_y: 0
+    biome: forest
+    resource_bias:
+      wood: 0.9        # 木材资源丰富度 0.0-1.0
+      mushroom: 0.6
+      fish: 0.2
+    danger_level: 0.3
+    fertility: 0.8
+    humidity: 0.6
+    traffic_score: 0.0  # 运行时更新
+
+  - id: n_ridge
+    name: "北脊"
+    grid_x: 1
+    grid_y: 0
+    biome: highland
+    resource_bias:
+      wood: 0.4
+      mushroom: 0.3
+      fish: 0.1
+    danger_level: 0.5
+    fertility: 0.3
+    humidity: 0.4
+    traffic_score: 0.0
+
+  - id: ne_coast
+    name: "东北海岸"
+    grid_x: 2
+    grid_y: 0
+    biome: coast
+    resource_bias:
+      wood: 0.4
+      mushroom: 0.5
+      fish: 0.8
+    danger_level: 0.2
+    fertility: 0.5
+    humidity: 0.7
+    traffic_score: 0.0
+
+  - id: ne_islet
+    name: "东北小岛"
+    grid_x: 3
+    grid_y: 0
+    biome: islet
+    resource_bias:
+      wood: 0.2
+      mushroom: 0.4
+      fish: 0.9
+    danger_level: 0.4
+    fertility: 0.3
+    humidity: 0.8
+    traffic_score: 0.0
+
+  - id: w_forest
+    name: "西部林区"
+    grid_x: 0
+    grid_y: 1
+    biome: forest
+    resource_bias:
+      wood: 0.8
+      mushroom: 0.5
+      fish: 0.2
+    danger_level: 0.3
+    fertility: 0.7
+    humidity: 0.5
+    traffic_score: 0.0
+
+  - id: central_plain
+    name: "中央平原"
+    grid_x: 1
+    grid_y: 1
+    biome: plain
+    resource_bias:
+      wood: 0.5
+      mushroom: 0.4
+      fish: 0.3
+    danger_level: 0.3
+    fertility: 0.6
+    humidity: 0.5
+    traffic_score: 0.0
+
+  - id: east_coast
+    name: "东海岸"
+    grid_x: 2
+    grid_y: 1
+    biome: coast
+    resource_bias:
+      wood: 0.5
+      mushroom: 0.6
+      fish: 0.7
+    danger_level: 0.3
+    fertility: 0.6
+    humidity: 0.7
+    traffic_score: 0.0
+
+  - id: east_bay
+    name: "东海湾"
+    grid_x: 3
+    grid_y: 1
+    biome: bay
+    resource_bias:
+      wood: 0.3
+      mushroom: 0.5
+      fish: 0.8
+    danger_level: 0.3
+    fertility: 0.5
+    humidity: 0.7
+    traffic_score: 0.0
+
+  - id: abandoned_west
+    name: "废弃西区"
+    grid_x: 0
+    grid_y: 2
+    biome: barren
+    resource_bias:
+      wood: 0.2
+      mushroom: 0.2
+      fish: 0.1
+    danger_level: 0.7
+    fertility: 0.2
+    humidity: 0.3
+    traffic_score: 0.0
+
+  - id: south_plain
+    name: "南部平原"
+    grid_x: 1
+    grid_y: 2
+    biome: plain
+    resource_bias:
+      wood: 0.3
+      mushroom: 0.4
+      fish: 0.3
+    danger_level: 0.4
+    fertility: 0.5
+    humidity: 0.4
+    traffic_score: 0.0
+
+  - id: se_coast
+    name: "东南海岸"
+    grid_x: 2
+    grid_y: 2
+    biome: coast
+    resource_bias:
+      wood: 0.4
+      mushroom: 0.6
+      fish: 0.7
+    danger_level: 0.3
+    fertility: 0.5
+    humidity: 0.6
+    traffic_score: 0.0
+
+  - id: se_marsh
+    name: "东南沼泽"
+    grid_x: 3
+    grid_y: 2
+    biome: marsh
+    resource_bias:
+      wood: 0.3
+      mushroom: 0.8
+      fish: 0.6
+    danger_level: 0.5
+    fertility: 0.4
+    humidity: 0.9
+    traffic_score: 0.0
+
+  - id: sw_rocks
+    name: "西南岩地"
+    grid_x: 0
+    grid_y: 3
+    biome: rocky
+    resource_bias:
+      wood: 0.1
+      mushroom: 0.2
+      fish: 0.3
+    danger_level: 0.6
+    fertility: 0.2
+    humidity: 0.3
+    traffic_score: 0.0
+
+  - id: s_grassland
+    name: "南部草甸"
+    grid_x: 1
+    grid_y: 3
+    biome: grassland
+    resource_bias:
+      wood: 0.4
+      mushroom: 0.3
+      fish: 0.2
+    danger_level: 0.3
+    fertility: 0.6
+    humidity: 0.4
+    traffic_score: 0.0
+
+  - id: s_coast
+    name: "南海岸"
+    grid_x: 2
+    grid_y: 3
+    biome: coast
+    resource_bias:
+      wood: 0.3
+      mushroom: 0.4
+      fish: 0.7
+    danger_level: 0.2
+    fertility: 0.4
+    humidity: 0.6
+    traffic_score: 0.0
+
+  - id: se_lagoon
+    name: "东南泻湖"
+    grid_x: 3
+    grid_y: 3
+    biome: lagoon
+    resource_bias:
+      wood: 0.2
+      mushroom: 0.5
+      fish: 0.9
+    danger_level: 0.4
+    fertility: 0.3
+    humidity: 0.9
+    traffic_score: 0.0

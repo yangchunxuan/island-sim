@@ -7,9 +7,11 @@
 支持 --simulate-days N 参数（运行N天后自动停止输出统计）。
 """
 
+import contextlib
 import json
 import os
 import sys
+import time
 
 import pygame
 
@@ -24,6 +26,7 @@ from config import (
     OVERLAY_STATS,
     OVERLAY_PATH,
 )
+from npc.ai_brain import AIBrain
 from npc.behavior import register_npc_states
 from npc.memory import Memory
 from npc.npc import NPC
@@ -43,12 +46,18 @@ def _create_game_objects():
     resource_mgr = ResourceManager(game_map._grid)
     pressure_map = RegionPressureMap(game_map._grid)
     resource_mgr.set_pressure_map(pressure_map)
+    resource_mgr.set_time_system(time_system)
+
+    # ── T-028 AI决策层 ──
+    ai_brain = AIBrain()
 
     npcs: list[NPC] = []
     for data in NPC_INITIAL_DATA:
-        npc = NPC(data, time_system, game_map, resource_mgr=resource_mgr)
+        npc = NPC(data, time_system, game_map, resource_mgr=resource_mgr, ai_brain=ai_brain)
         register_npc_states(npc)
         npcs.append(npc)
+
+    NPC.set_all_npcs(npcs)  # 用于社交距离检测
 
     observer = WorldObserver()
     observer.set_pressure_map(pressure_map)
@@ -89,48 +98,114 @@ def _save_headless_stats(observer: WorldObserver, time_system: TimeSystem,
     print(f"[HEADLESS] Statistics saved to {path}")
 
 
-def run_headless(days: int) -> None:
+def run_headless(days: int, live_chronicle: bool = False) -> None:
     """headless模式：无渲染高速运行N天"""
     _, time_system, resource_mgr, _, npcs, observer = _create_game_objects()
     target_ticks = days * DAY_TICKS
 
-    print(f"[HEADLESS] Simulating {days} days ({target_ticks} ticks)...")
-    tick = 0
-    while tick < target_ticks:
-        time_system.tick()
-        for npc in npcs:
-            npc.update()
-        observer.update(time_system._tick_count, resource_mgr, npcs)
-        tick = time_system._tick_count
+    if not live_chronicle:
+        print(f"[HEADLESS] Simulating {days} days ({target_ticks} ticks)...")
+    else:
+        print()
+        print("╔" + "═" * 58 + "╗")
+        print(f"║  实时编年史 — {days} 天{' ' * (48 - len(str(days)))}║")
+        print("╚" + "═" * 58 + "╝")
+        print()
 
-        if tick % (DAY_TICKS * 10) == 0 and tick > 0:
+    tick = 0
+    last_feed_count = 0
+    last_day = -1
+    HOUR_TICKS = 60  # 约1游戏小时
+
+    while tick < target_ticks:
+        # 批量运行1小时（live模式下压制系统print噪音）
+        with contextlib.redirect_stdout(open(os.devnull, 'w')) if live_chronicle else contextlib.nullcontext():
+            for _ in range(HOUR_TICKS):
+                if tick >= target_ticks:
+                    break
+                time_system.tick()
+                for npc in npcs:
+                    npc.update()
+                observer.update(time_system._tick_count, resource_mgr, npcs)
+                tick = time_system._tick_count
+
+        if live_chronicle:
+            # 输出这一小时的新事件（跳过海量 ECOLOGY）
+            new_entries = observer.live_feed.all()[last_feed_count:]
+            for entry in new_entries:
+                level = entry.get("level", "")
+                if level in ("INFO", "WARNING", "CRITICAL", "MOVEMENT"):
+                    day = entry["tick"] // DAY_TICKS
+                    if day != last_day:
+                        print(f"── Day {day} ──")
+                        last_day = day
+                    print(f"  {entry['message']}")
+            last_feed_count = observer.live_feed.count
+            time.sleep(0.15)
+        elif tick % (DAY_TICKS * 10) == 0 and tick > 0:
             pct = tick * 100 // target_ticks
             day = tick // DAY_TICKS
             print(f"[HEADLESS] Day {day} ({pct}%) - "
                   f"hunger_avg={sum(n.hunger for n in npcs)/len(npcs):.0f}")
 
+    if live_chronicle:
+        print()
+        print("═" * 60)
+
     _save_headless_stats(observer, time_system, resource_mgr, days)
     print(f"[HEADLESS] Done. {days} days simulated ({tick} ticks).")
 
 
+def _print_chronicle() -> None:
+    """读取并打印编年史"""
+    path = os.path.join(os.path.dirname(__file__), "world_reports", "chronicle.md")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            print(f.read())
+    else:
+        print("(编年史为空 — 无里程碑事件)")
+
+
 def main() -> None:
     """游戏主函数"""
+    args = sys.argv[1:]
+
     # ── 参数解析 ──
-    headless_mode = "--headless" in sys.argv
+    # 默认启动 = headless 30天 → 输出编年史
+    gui_mode = "--gui" in args or "--test" in args
+    headless_mode = "--headless" in args
+    live_mode = "--live" in args
+    text_mode = "--text" in args
     simulate_days = 0
-    for i, arg in enumerate(sys.argv):
-        if arg == "--simulate-days" and i + 1 < len(sys.argv):
+    text_speed = 5.0  # 默认1游戏天=5现实秒
+    for i, arg in enumerate(args):
+        if arg == "--simulate-days" and i + 1 < len(args):
             try:
-                simulate_days = int(sys.argv[i + 1])
+                simulate_days = int(args[i + 1])
+            except ValueError:
+                pass
+        if arg == "--speed" and i + 1 < len(args):
+            try:
+                text_speed = float(args[i + 1])
             except ValueError:
                 pass
 
-    if headless_mode and simulate_days > 0:
-        run_headless(simulate_days)
+    # ── T-029 文字直播模式（无pygame） ──
+    if text_mode:
+        from systems.text_sim import TextSimulation
+        sim = TextSimulation(speed=text_speed)
+        sim.run()
+        sys.exit(0)
+
+    if headless_mode or not gui_mode:
+        days = simulate_days if simulate_days > 0 else 30
+        run_headless(days, live_chronicle=live_mode)
+        if not live_mode:
+            _print_chronicle()
         sys.exit(0)
 
     # --test 模式：运行3秒(180帧@60fps)后自动退出
-    test_mode = "--test" in sys.argv
+    test_mode = "--test" in args
     test_counter = 180
 
     pygame.init()
@@ -190,10 +265,6 @@ def main() -> None:
 
     pygame.quit()
     sys.exit()
-
-
-if __name__ == "__main__":
-    main()
 
 
 if __name__ == "__main__":

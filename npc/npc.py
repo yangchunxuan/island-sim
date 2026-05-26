@@ -4,7 +4,10 @@ NPC角色模块 — Island Sim v1
 定义NPC类，管理属性、状态机和每帧更新逻辑。
 """
 
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from npc.ai_brain import AIBrain
 
 from config import (
     HUNGER_MOOD_DECAY_RATE,
@@ -32,9 +35,17 @@ NPC_COLORS: list[tuple[int, int, int]] = [
 class NPC:
     """NPC角色类，管理属性和行为状态"""
 
+    _all_npcs: list["NPC"] = []
+
+    @classmethod
+    def set_all_npcs(cls, npcs: list["NPC"]) -> None:
+        """设置所有NPC引用（创建完所有NPC后由main.py调用）"""
+        cls._all_npcs = list(npcs)
+
     def __init__(self, data: Dict[str, Any],
                  time_system: TimeSystem, game_map: GameMap,
-                 resource_mgr: Any = None) -> None:
+                 resource_mgr: Any = None,
+                 ai_brain: Optional["AIBrain"] = None) -> None:
         self.name: str = data["name"]
         self.gender: str = data["gender"]
         self.x: int = data["x"]
@@ -56,6 +67,13 @@ class NPC:
         self._time: TimeSystem = time_system
         self._map: GameMap = game_map
         self._resource_mgr: Any = resource_mgr
+        # ── T-028 AI决策层 ──
+        self._ai_brain: Optional["AIBrain"] = ai_brain
+        """AI决策大脑引用（None表示不使用AI）"""
+        self._ai_idle_frames: int = 0
+        """连续空闲帧数，超1800帧(30秒)触发AI长期规划"""
+        self._prev_mood: float = self.mood
+        """上一帧mood值，用于检测重大情绪波动"""
         # 行走目标坐标
         self.target_x: Optional[int] = None
         self.target_y: Optional[int] = None
@@ -91,6 +109,9 @@ class NPC:
 
         # 更新weakened状态
         self._update_weakened()
+
+        # ── T-028 AI决策：重大事件检查 ──
+        self._check_ai_events()
 
         # 检查强制状态转换
         self._check_state_transitions()
@@ -138,6 +159,26 @@ class NPC:
         if self.hunger > 70 and current not in ("SEARCH_FOOD", "EAT"):
             self.fsm.set_state("SEARCH_FOOD", self)
             return
+
+    def _check_ai_events(self) -> None:
+        """检测重大事件并触发AI情绪决策（非阻塞）"""
+        if self._ai_brain is None:
+            self._prev_mood = self.mood
+            return
+
+        # 心情暴跌 > 20点
+        mood_drop = self._prev_mood - self.mood
+        if mood_drop > 20:
+            event = f"心情突然暴跌{mood_drop:.0f}点（从{self._prev_mood:.0f}到{self.mood:.0f}）"
+            if self._ai_brain.should_query(self.name):
+                self._ai_brain.request_decision(self, {"event": event})
+
+        # 进入weakened状态
+        if self._weakened and self._hunger_high_duration == WEAKENED_TRIGGER_DURATION:
+            if self._ai_brain.should_query(self.name):
+                self._ai_brain.request_decision(self, {"event": "进入了weakened虚弱状态"})
+
+        self._prev_mood = self.mood
 
     def get_state(self) -> str:
         """返回当前状态名称"""

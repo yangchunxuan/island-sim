@@ -1,0 +1,77 @@
+# 世界常量配置
+#
+# 集中管理世界级常量。
+# 系统运行时的核心参数，控制模拟的时空尺度和行为边界。
+# 新增常量应优先定义在此处，避免散落。
+
+# ──────────────────────────────────
+# 世界周期
+# ──────────────────────────────────
+world_cycles:
+  tick_per_day: 1200
+  day_per_season: 30           # 预留：季节长度
+  season_per_year: 12          # 预留：年度周期
+  max_simulate_days_default: 30
+
+# ──────────────────────────────────
+# 气候周期
+# ──────────────────────────────────
+climate_cycles:
+  rain_cycle_ticks: 500        # 降雨周期检查间隔
+  daylight_ticks: 600          # 白昼长度（tick）
+  nighttime_ticks: 600         # 夜晚长度（tick）
+
+# ──────────────────────────────────
+# 长期恢复倍率
+# ──────────────────────────────────
+recovery_multipliers:
+  base_recovery: 1.0
+  low_pressure_bonus: 1.5
+  abandoned_zone_bonus: 2.0
+  active_zone_penalty: 0.5
+
+# ──────────────────────────────────
+# 生态压力参数
+# ──────────────────────────────────
+pressure_parameters:
+  max_pressure_score: 1.0
+  calculation_interval: 60     # 压力计算间隔（tick）
+  history_window: 600          # 压力历史窗口（tick）
+  region_collapse_cooldown: 3600  # 区域崩溃冷却（tick）
+
+# ──────────────────────────────────
+# 最大日志数量
+# ──────────────────────────────────
+log_limits:
+  event_logger_max: 5000       # 事件记录器最大条目
+  live_feed_max: 200           # 实时流最大条目
+  chronicle_save_interval: 600 # 编年史写盘间隔（tick）
+  log_trim_batch: 50           # 每次裁剪量
+
+# ──────────────────────────────────
+# 世界老化速度
+# ──────────────────────────────────
+world_aging:
+  aging_enabled: false         # v1 暂不启用世界老化
+  decay_start_day: 100         # 老化开始天数（预留）
+  decay_rate_per_day: 0.001    # 每日老化速率（预留）
+
+# ──────────────────────────────────
+# NPC 基础参数
+# ──────────────────────────────────
+npc_parameters:
+  hunger_rate: 0.1             # 每tick饥饿增加
+  energy_drain_day: 0.05       # 白天能量消耗
+  energy_drain_night: 0.02     # 夜晚额外消耗
+  max_hunger: 100
+  max_energy: 100
+  weakened_threshold: 80       # 饥饿>此值进入虚弱
+  sleep_recovery: 50           # 每次睡眠能量恢复
+
+# ──────────────────────────────────
+# 时间单位换算
+# ──────────────────────────────────
+time_conversion:
+  fps: 60                      # 显示帧率
+  headless_tickrate: 0         # 0=无限制（最快速度）
+  real_second_per_game_day: 20  # 60fps × 1200ticks/day / 60fps

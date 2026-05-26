@@ -1,0 +1,106 @@
+# 世界生态规则
+#
+# 这是世界宪法，不是实现代码。
+# 定义生态系统的底层规则，供仿真系统读取。
+# 每个值都是初始建议值，可被 simulations 覆盖。
+
+# ──────────────────────────────────
+# 1. 资源循环
+# ──────────────────────────────────
+resource_cycle:
+  forest:
+    recover_base_days: 25          # 森林资源耗尽后基础恢复周期（天）
+    regrowth_check_interval: 60    # 恢复检查间隔（tick）
+    min_regrowth_chance: 0.002     # 低压力下恢复概率
+    max_regrowth_chance: 0.01      # 高压力下恢复概率（压力抑制）
+    cluster_regrowth_bias: 0.3     # 集群恢复倾向（0=独立, 1=成片）
+
+  mushroom:
+    spawn_base_rate: 0.03          # 每个tick生成概率
+    spawn_rain_multiplier: 2.5     # 湿润条件下倍率
+    lifetime_ticks_min: 240        # 最短寿命（tick）
+    lifetime_ticks_max: 600        # 最长寿命（tick）
+    max_per_tile: 3                # 单格上限
+
+  fish:
+    spawn_base_rate: 0.02
+    lifetime_ticks: 300
+    max_per_water_tile: 3
+    spawn_water_temp_bonus: 1.2    # 水温适宜地区的生成倍率
+
+# ──────────────────────────────────
+# 2. 生态压力
+# ──────────────────────────────────
+ecosystem_pressure:
+  score_formula:                   # 区域压力分 = f(activity, depletion)
+    activity_weight: 0.5
+    depletion_weight: 0.5
+    score_cap: 1.0
+
+  thresholds:
+    boost_threshold: 0.2           # 低于此值 → 加速恢复
+    penalize_threshold: 0.6        # 高于此值 → 抑制生成
+    collapse_threshold: 0.8        # 高于此值 → 区域崩溃
+    recovery_threshold: 0.4        # 低于此值 → 区域恢复
+
+  starvation:
+    base_multiplier: 1.5           # 饥饿加速倍率
+    critical_hunger: 80            # 饥饿线（高于此值视为饥饿状态）
+    weakened_hunger_floor: 20      # 虚弱状态下饥饿不再下降
+
+# ──────────────────────────────────
+# 3. 迁移规则
+# ──────────────────────────────────
+migration_rules:
+  avoid_depleted_regions: true
+  low_pressure_attraction: 0.7     # 低压力区域吸引力权重
+  high_pressure_avoidance: 0.3     # 高压力区域回避阈值
+  exploration_base_range: 6        # 基础探索半径
+  migration_check_interval: 60     # 迁移决策间隔（tick）
+
+# ──────────────────────────────────
+# 4. 恢复规则
+# ──────────────────────────────────
+recovery_rules:
+  abandoned_region_bonus: 2.0      # 废弃区域的恢复加速倍率
+  regrowth_pressure_sort: true     # 低压力区域优先恢复
+  recovery_cooldown: 1200          # 崩溃后最短恢复等待（tick）
+  full_recovery_threshold: 0.1     # 区域压力低于此值视为完全恢复
+
+# ──────────────────────────────────
+# 5. 气候规则
+# ──────────────────────────────────
+climate_rules:
+  rain:
+    mushroom_bonus: 2.5
+    regrowth_bonus: 1.3
+    fish_bonus: 1.1
+
+  daylight:
+    daytime_hunger_rate: 0.1       # 白天饥饿速度（per tick）
+    nighttime_energy_drain: 0.05   # 夜晚能量消耗速度
+    sleep_recovery_rate: 2.0       # 睡眠时能量恢复倍率
+
+  seasons:
+    enabled: true                  # T-027: 启用四季系统
+    cycle_length: 120              # 完整四季循环天数
+    spring_days: 30
+    summer_days: 30
+    autumn_days: 30
+    winter_days: 30
+    effects:
+      spring_mushroom_bonus: 2.5
+      summer_fish_bonus: 2.0
+      autumn_pressure_increase: 1.2
+      winter_energy_cost: 2.0
+      winter_starvation_risk: 1.5
+
+# ──────────────────────────────────
+# 6. 衰退规则
+# ──────────────────────────────────
+decay_rules:
+  unused_area_decay: true
+  no_visit_decay_ticks: 7200       # 无人访问后开始衰退（tick）
+  decay_rate: 0.01                 # 每tick衰退量
+  decay_cap: 0.6                   # 最高衰退上限
+  recovery_on_visit: 0.05          # 有人访问时恢复量

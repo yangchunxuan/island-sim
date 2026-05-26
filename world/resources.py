@@ -67,6 +67,9 @@ class ResourceManager:
         # ── 区域压力参考（T-019） ──
         self._pressure_map: object = None
 
+        # ── 时间系统参考（T-027 季节） ──
+        self._time_system: object = None
+
         # ── 生态迁移（T-022） ──
         self._eco_tick: int = 0  # 生态帧计数器（去重后的实际计数）
 
@@ -193,9 +196,10 @@ class ResourceManager:
 
     def _process_regrowth(self) -> None:
         """处理depleted森林的恢复计时（低压区域优先恢复，实现生态迁移）"""
+        season_mult = self._get_season_mult("forest")
         expired = []
         for pos, ticks in self._regrowth_timer.items():
-            self._regrowth_timer[pos] = ticks - 1
+            self._regrowth_timer[pos] = ticks - season_mult
             if self._regrowth_timer[pos] <= 0:
                 expired.append(pos)
 
@@ -278,6 +282,7 @@ class ResourceManager:
             spawn_chance *= MUSHROOM_SPAWN_NIGHT_MULT
 
         pressure_mult = getattr(self._pressure_map, 'get_spawn_multiplier', None)
+        season_mult = self._get_season_mult("mushroom")
 
         for zone in self._mushroom_spawn_zones:
             if zone in self._mushrooms:
@@ -285,7 +290,7 @@ class ResourceManager:
             # 热点倍率
             hotspot = self._mushroom_hotspot.get(zone, 1.0)
             p_mult = pressure_mult(zone[0], zone[1]) if pressure_mult else 1.0
-            if random.random() < spawn_chance * hotspot * p_mult:
+            if random.random() < spawn_chance * hotspot * p_mult * season_mult:
                 self._mushrooms[zone] = {"age": 0}
                 x, y = zone
                 print(f"[ECO] Mushroom spawned at ({x},{y})")
@@ -336,13 +341,14 @@ class ResourceManager:
             spawn_chance *= FISH_SPAWN_NIGHT_REDUCTION
 
         pressure_mult = getattr(self._pressure_map, 'get_spawn_multiplier', None)
+        season_mult = self._get_season_mult("fish")
 
         for zone in self._fish_spawn_zones:
             if zone in self._fish:
                 continue
             hotspot = self._fish_hotspot.get(zone, 1.0)
             p_mult = pressure_mult(zone[0], zone[1]) if pressure_mult else 1.0
-            if random.random() < spawn_chance * hotspot * p_mult:
+            if random.random() < spawn_chance * hotspot * p_mult * season_mult:
                 self._fish[zone] = {"age": 0}
                 x, y = zone
                 print(f"[ECO] Fish spawned at ({x},{y})")
@@ -365,6 +371,25 @@ class ResourceManager:
     def set_pressure_map(self, pressure_map: object) -> None:
         """注入区域压力图引用（T-019）"""
         self._pressure_map = pressure_map
+
+    def set_time_system(self, time_system: object) -> None:
+        """注入时间系统引用（T-027 季节）"""
+        self._time_system = time_system
+
+    def _get_season_mult(self, resource: str) -> float:
+        """返回当前季节对某类资源的倍率"""
+        from config import (
+            SEASON_FISH_BONUS, SEASON_MUSHROOM_BONUS, SEASON_REGROWTH_BONUS,
+        )
+        if self._time_system is None:
+            return 1.0
+        season = self._time_system.get_season()
+        bonus_map = {
+            "mushroom": SEASON_MUSHROOM_BONUS,
+            "fish": SEASON_FISH_BONUS,
+            "forest": SEASON_REGROWTH_BONUS,
+        }
+        return bonus_map.get(resource, {}).get(season, 1.0)
 
     def record_traffic(self, x: int, y: int) -> None:
         """记录NPC经过某tile（累积+近期）"""

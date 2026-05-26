@@ -1,0 +1,60 @@
+# NPC 行为倾向配置
+#
+# 定义生物单元的行为倾向参数。
+# 这些是生物倾向（biological tendencies），不是人格特质。
+# 倾向值影响资源选择、移动模式和环境适应。
+# 取值范围：0.0 ~ 1.0
+
+npc_defaults:
+  coastal_preference: 0.5
+  forest_affinity: 0.5
+  exploration_drive: 0.5
+  risk_tolerance: 0.5
+  social_stay_bias: 0.5
+  food_preference: 0.5          # 0.0=偏好植物, 1.0=偏好肉类/鱼类
+  activity_cycle: 0.5           # 0.0=昼行, 1.0=夜行
+  territoriality: 0.5           # 领地意识
+  resource_hoarding: 0.5        # 囤积倾向
+  migration_readiness: 0.5      # 迁移意愿
+
+npcs:
+  - id: a_qiang
+    name: "阿强"
+    coastal_preference: 0.8     # 偏好水域区域
+    exploration_drive: 0.3      # 不喜欢远行
+    risk_tolerance: 0.9         # 高风险容忍
+    territoriality: 0.7
+    migration_readiness: 0.2
+
+  - id: a_zhen
+    name: "阿珍"
+    forest_affinity: 0.7        # 偏好森林区域
+    social_stay_bias: 0.8       # 倾向留在NPC聚集区
+    exploration_drive: 0.4
+    resource_hoarding: 0.6
+
+  - id: da_zhuang
+    name: "大壮"
+    exploration_drive: 0.8      # 经常远行
+    risk_tolerance: 0.7
+    migration_readiness: 0.9    # 高度迁移意愿
+    territoriality: 0.2
+    activity_cycle: 0.7         # 偏夜行
+
+  - id: xiao_mei
+    name: "小美"
+    forest_affinity: 0.6
+    coastal_preference: 0.4
+    social_stay_bias: 0.6
+    food_preference: 0.3        # 偏植物/蘑菇
+    activity_cycle: 0.3         # 偏昼行
+    resource_hoarding: 0.5
+
+  - id: lao_li
+    name: "老李"
+    risk_tolerance: 0.2         # 低风险容忍
+    exploration_drive: 0.3
+    territoriality: 0.8         # 高度领地意识
+    social_stay_bias: 0.7
+    migration_readiness: 0.1    # 极低迁移意愿
+    food_preference: 0.7        # 偏鱼类

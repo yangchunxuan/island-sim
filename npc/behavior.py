@@ -18,6 +18,10 @@ from systems.pathfinding import astar
 from systems.state_machine import State
 from world.map import GameMap
 
+# ── T-028 社交检测半径 ──
+_SOCIAL_RADIUS: int = 2
+"""检测其他NPC的距离（曼哈顿距离）"""
+
 
 def _tick_eco(owner: object) -> None:
     """推进生态帧（从每个state的update调用，去重由ResourceManager处理）"""
@@ -54,9 +58,23 @@ class IdleState(State):
         owner._idle_timer = base
 
     def update(self, owner: object) -> None:
-        """计时结束后切换为WALK"""
+        """计时结束后切换为WALK。支持AI长期规划决策。"""
         _tick_eco(owner)
         owner._idle_timer -= 1
+
+        # ── T-028 AI长期规划 ──
+        ai_brain = getattr(owner, '_ai_brain', None)
+        if ai_brain is not None:
+            owner._ai_idle_frames += 1
+            if owner._ai_idle_frames >= 1800 and ai_brain.should_query(owner.name):
+                ai_brain.request_decision(owner, {"idle_duration": owner._ai_idle_frames // 60})
+                owner._ai_idle_frames = 0
+
+            decision = ai_brain.get_decision(owner.name)
+            if decision is not None and decision != "IDLE":
+                self._apply_ai_decision(owner, decision)
+                return
+
         if owner._idle_timer <= 0:
             target = self._pick_walk_target(owner)
             if target:
@@ -80,9 +98,40 @@ class IdleState(State):
                 return tx, ty
         return None
 
+    @staticmethod
+    def _apply_ai_decision(owner: object, decision: str) -> None:
+        """执行AI决策的状态转换"""
+        if decision == "SEARCH_FOOD":
+            owner.fsm.set_state("SEARCH_FOOD", owner)
+        elif decision == "SLEEP":
+            owner.fsm.set_state("SLEEP", owner)
+        elif decision == "WALK":
+            target = IdleState._pick_walk_target(owner)
+            if target:
+                owner.target_x, owner.target_y = target
+                owner._walk_purpose = "IDLE"
+                owner._move_cooldown = 0
+                owner.fsm.set_state("WALK", owner)
+        elif decision in ("EAT",):
+            # 不能凭空进食，改为觅食
+            owner.fsm.set_state("SEARCH_FOOD", owner)
+
 
 class WalkState(State):
-    """行走状态：沿A*路径一步步移动，weakened时速度减半"""
+    """行走状态：沿A*路径一步步移动，weakened时速度减半。路过其他NPC时触发社交决策。"""
+
+    @staticmethod
+    def _find_nearby_npcs(owner: object, radius: int = 2) -> list:
+        """查找附近一定范围内的其他NPC（用于社交触发）"""
+        all_npcs = getattr(type(owner), '_all_npcs', [])
+        nearby = []
+        for other in all_npcs:
+            if other is owner:
+                continue
+            dist = abs(other.x - owner.x) + abs(other.y - owner.y)
+            if dist <= radius:
+                nearby.append(other)
+        return nearby
 
     def enter(self, owner: object) -> None:
         """进入行走，用A*计算从当前位置到目标的路径"""
@@ -104,8 +153,16 @@ class WalkState(State):
         owner._path = path
 
     def update(self, owner: object) -> None:
-        """每帧从路径中弹出一步，记录人流量"""
+        """每帧从路径中弹出一步，记录人流量。支持AI社交决策。"""
         _tick_eco(owner)
+
+        # ── T-028 AI社交决策：遇到其他NPC时 ──
+        ai_brain = getattr(owner, '_ai_brain', None)
+        if ai_brain is not None:
+            nearby = WalkState._find_nearby_npcs(owner)
+            if nearby and ai_brain.should_query(owner.name):
+                ai_brain.request_decision(owner, {"nearby_npcs": [n.name for n in nearby]})
+
         if not owner._path:
             purpose = owner._walk_purpose
             owner._walk_purpose = "IDLE"

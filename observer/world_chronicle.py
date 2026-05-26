@@ -32,10 +32,12 @@ class WorldChronicle:
         self._readable_path = readable_path
         self._entries: list[dict[str, Any]] = []
         self._last_tick_recorded: dict[str, int] = {}
+        self._dirty: bool = False
+        self._save_counter: int = 0
         self._load()
 
     def update(self, tick: int, event_logger: object) -> None:
-        """从事件记录中提取里程碑事件"""
+        """从事件记录中提取里程碑事件（仅新条目时标记dirty）"""
         events = event_logger.get_events_since(0)
 
         for event in events:
@@ -50,8 +52,14 @@ class WorldChronicle:
             if entry:
                 self._entries.append(entry)
                 self._last_tick_recorded[et] = event["tick"]
+                self._dirty = True
 
-        self._save()
+        # 有新增条目时才写盘（最多每1200tick一次）
+        self._save_counter += 1
+        if self._dirty and self._save_counter >= 600:
+            self._save()
+            self._dirty = False
+            self._save_counter = 0
 
     def _format_entry(self, day: int, event: dict) -> dict | None:
         """将事件格式化为编年史条目"""

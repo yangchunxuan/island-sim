@@ -1,11 +1,11 @@
 """
 时间系统模块 — Island Sim v1
 
-管理游戏内时间流逝、昼夜判断、天数计算。
+管理游戏内时间流逝、昼夜判断、天数计算、四季循环。
 每个 game tick 推进时间，时间流速由 config.DAY_TICKS 控制。
 """
 
-from config import DAY_TICKS
+from config import DAY_TICKS, SEASON_CYCLE_DAYS, SPRING_DAYS
 
 
 class TimeSystem:
@@ -15,6 +15,8 @@ class TimeSystem:
     """白天开始小时"""
     NIGHT_START: int = 20
     """夜晚开始小时"""
+
+    SEASONS: list[str] = ["spring", "summer", "autumn", "winter"]
 
     def __init__(self) -> None:
         self._tick_count: int = 0
@@ -39,9 +41,33 @@ class TimeSystem:
         """返回已经过的完整天数"""
         return self._tick_count // DAY_TICKS
 
+    def get_season(self) -> str:
+        """返回当前季节: spring/summer/autumn/winter"""
+        day = self.get_day_count() % SEASON_CYCLE_DAYS
+        if day < SPRING_DAYS:
+            return "spring"
+        elif day < SPRING_DAYS * 2:
+            return "summer"
+        elif day < SPRING_DAYS * 3:
+            return "autumn"
+        else:
+            return "winter"
+
+    def get_season_name(self) -> str:
+        """返回中文季节名称"""
+        names = {"spring": "春季", "summer": "夏季", "autumn": "秋季", "winter": "冬季"}
+        return names.get(self.get_season(), "未知")
+
+    def get_season_progress(self) -> float:
+        """返回当前季节的进度 (0.0 ~ 1.0)"""
+        day = self.get_day_count() % SEASON_CYCLE_DAYS
+        season_day = day % SPRING_DAYS
+        return season_day / SPRING_DAYS
+
     def get_time_string(self) -> str:
-        """返回 'Day X, HH:MM' 格式的时间字符串"""
+        """返回 'Day X, HH:MM (季节)' 格式的时间字符串"""
         hour = self.get_hour()
         hh = int(hour)
         mm = int((hour - hh) * 60)
-        return f"Day {self.get_day_count()}, {hh:02d}:{mm:02d}"
+        season = self.get_season_name()
+        return f"Day {self.get_day_count()}, {hh:02d}:{mm:02d} ({season})"

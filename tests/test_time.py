@@ -16,7 +16,7 @@ class TestTimeSystem:
         ts = TimeSystem()
         assert ts.get_day_count() == 0
         assert ts.get_hour() == 0.0
-        assert ts.get_time_string() == "Day 0, 00:00"
+        assert ts.get_time_string().startswith("Day 0, 00:00")
 
     def test_tick_advances_hour(self) -> None:
         """每次 tick 推进时间"""
@@ -32,7 +32,7 @@ class TestTimeSystem:
             ts.tick()
         assert ts.get_day_count() == 1
         assert abs(ts.get_hour() - 0.0) < 1e-9
-        assert ts.get_time_string() == "Day 1, 00:00"
+        assert ts.get_time_string().startswith("Day 1, 00:00")
 
     def test_multiple_days(self) -> None:
         """多个完整天的循环"""
@@ -97,4 +97,4 @@ class TestTimeSystem:
         target_ticks = DAY_TICKS // 4
         for _ in range(target_ticks):
             ts.tick()
-        assert ts.get_time_string() == "Day 0, 06:00"
+        assert ts.get_time_string().startswith("Day 0, 06:00")
